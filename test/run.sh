@@ -2,6 +2,19 @@
 
 set -o errexit
 
+export NAME=jilgue
+export MARIADB_PATH=$(pwd)/mariadb
+
+envsubst < kind-config.yaml.tpl | tee kind-config.yaml
+
 kind create cluster --config kind-config.yaml || true
 
-kubectl --context kind-jilgue apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kind_context="kind-$NAME"
+
+kubectl --context $kind_context apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+
+terraform init
+terraform apply  -var="kind_context=$kind_context" -auto-approve
+
+echo "Admin password: $(kubectl --context $kind_context -n argocd get secret argocd-initial-admin-secret --template={{.data.password}} | base64 -D)"
+kubectl --context $kind_context -n argocd port-forward service/argo-cd-argocd-server 8080:80
