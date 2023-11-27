@@ -10,20 +10,6 @@ spec:
       storage: 3Gi
 ---
 apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: task-pv-volume
-  labels:
-    type: local
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-    - ReadWriteOnce
-  hostPath:
-    path: "/mariadb"
----
-apiVersion: v1
 kind: Pod
 metadata:
   name: task-pv-pod

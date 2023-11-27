@@ -17,6 +17,6 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-  extraMounts:
-  - hostPath: /Users/cmartin/projects/jilgue/villajilguero-oci-services/test/mariadb
-    containerPath: /mariadb
+#  extraMounts:
+#  - hostPath: /home/cesar/projects/villajilguero-oci-services/test/mariadb
+#    containerPath: /mariadb
