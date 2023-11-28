@@ -29,3 +29,31 @@ resource "helm_release" "argocd" {
   create_namespace = true
   values           = [templatefile("${path.module}/argocd-values.yaml", {})]
 }
+
+resource "helm_release" "app_of_apps" {
+  name             = "argo-cd"
+  chart            = "argocd-apps"
+  repository       = "https://argoproj.github.io/argo-helm"
+  version          = "5.51.4"
+  namespace        = "argocd"
+  timeout          = "120"
+
+  values = [<<EOF
+applications:
+  - name: manifests
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    project: default
+    source:
+      repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
+      targetRevision: develop
+      path: manifests/test
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: argocd
+
+  EOF
+  ]
+  depends_on = [helm_release.argocd]
+}
