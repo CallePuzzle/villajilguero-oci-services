@@ -12,3 +12,9 @@ repoServer:
 
 applicationSet:
   replicaCount: 1
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false

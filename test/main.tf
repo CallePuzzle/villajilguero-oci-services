@@ -25,18 +25,16 @@ resource "helm_release" "argocd" {
   repository       = "https://argoproj.github.io/argo-helm"
   version          = "5.51.4"
   namespace        = "argocd"
-  timeout          = "120"
   create_namespace = true
   values           = [templatefile("${path.module}/argocd-values.yaml", {})]
 }
 
 resource "helm_release" "app_of_apps" {
-  name             = "argo-cd"
+  name             = "argo-apps"
   chart            = "argocd-apps"
   repository       = "https://argoproj.github.io/argo-helm"
-  version          = "5.51.4"
+  version          = "1.4.1"
   namespace        = "argocd"
-  timeout          = "120"
 
   values = [<<EOF
 applications:
