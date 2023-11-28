@@ -114,6 +114,13 @@ spec:
         storage: 1Gi
     accessModes:
       - ReadWriteOnce
+  volumes: 
+    - name: mariabackup
+      persistentVolumeClaim:
+        claimName: mariabackup
+  volumeMounts: 
+    - name: mariabackup
+      mountPath: /var/mariadb/backup/
 
   myCnf: |
     [mariadb]
