@@ -34,4 +34,4 @@ override.tf.json
 terraform.rc
 
 # kind config
-kind-config.yaml
+test/kind-config.yaml

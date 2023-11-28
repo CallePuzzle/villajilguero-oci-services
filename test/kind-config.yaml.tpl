@@ -17,6 +17,6 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-  extraMounts:
-  - hostPath: $MARIADB_PATH
-    containerPath: /mariadb
+#  extraMounts:
+#  - hostPath: $MARIADB_PATH
+#    containerPath: /mariadb
