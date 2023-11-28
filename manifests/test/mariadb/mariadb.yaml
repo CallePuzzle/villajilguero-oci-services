@@ -47,10 +47,8 @@ spec:
   mariaDbRef:
     name: mariadb
   privileges:
-    - "SELECT"
-    - "INSERT"
-    - "UPDATE"
-  database: "*"
+    - "ALL"
+  database: "data-test"
   table: "*"
   username: user
   grantOption: true
