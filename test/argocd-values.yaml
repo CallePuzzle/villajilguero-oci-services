@@ -6,6 +6,11 @@ controller:
 
 server:
   replicas: 1
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - argocd.localhost
 
 repoServer:
   replicas: 1
@@ -18,3 +23,8 @@ dex:
 
 notifications:
   enabled: false
+
+configs:
+
+  params:
+     server.insecure: true

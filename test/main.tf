@@ -5,11 +5,16 @@ terraform {
       source  = "hashicorp/helm"
       version = "2.11.0"
     }
+    b2 = {
+      source  = "Backblaze/b2"
+      version = "0.8.4"
+    }
   }
 }
 
 variable "kind_context" {
-  type = string
+  type    = string
+  default = "kind-jilgue"
 }
 
 provider "helm" {
@@ -30,11 +35,11 @@ resource "helm_release" "argocd" {
 }
 
 resource "helm_release" "app_of_apps" {
-  name             = "argo-apps"
-  chart            = "argocd-apps"
-  repository       = "https://argoproj.github.io/argo-helm"
-  version          = "1.4.1"
-  namespace        = "argocd"
+  name       = "argo-apps"
+  chart      = "argocd-apps"
+  repository = "https://argoproj.github.io/argo-helm"
+  version    = "1.4.1"
+  namespace  = "argocd"
 
   values = [<<EOF
 applications:
@@ -54,4 +59,25 @@ applications:
   EOF
   ]
   depends_on = [helm_release.argocd]
+}
+
+resource "b2_application_key" "this" {
+  key_name     = "my-key"
+  capabilities = split(",", "deleteFiles,listBuckets,listFiles,readBucketEncryption,readBucketReplications,readBuckets,readFiles,shareFiles,writeBucketEncryption,writeBucketReplications,writeFiles")
+  bucket_id    = b2_bucket.this.bucket_id
+}
+
+resource "b2_bucket" "this" {
+  bucket_name = "callepuzzle-nextcloud-temp"
+  bucket_type = "allPrivate"
+}
+
+output "application_key" {
+  value = b2_application_key.this.application_key
+  sensitive = true
+}
+
+output "application_key_id" {
+  value = b2_application_key.this.application_key_id
+  sensitive = true
 }

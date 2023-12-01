@@ -21,6 +21,23 @@ spec:
           className: nginx
         nextcloud:
           host: nextcloud.localhost
+          configs:
+            s3.config.php: |-
+              <?php
+              $CONFIG = array (
+                'objectstore' => [
+                        'class' => '\\OC\\Files\\ObjectStore\\S3',
+                        'arguments' => [
+                                'bucket' => 'callepuzzle-nextcloud-temp',
+                                'hostname' => 's3.us-west-004.backblazeb2.com',
+                                'key' => '004bfa80387f28d0000000009',
+                                'secret' => 'K004vdJzBAtaH+7tOa4KGHMcufK52pY',
+                                'port' => 8443,
+                                // required for some non-Amazon S3 implementations
+                                'use_path_style' => true,
+                        ],
+                ],
+              );
         internalDatabase:
           enabled: false
         externalDatabase:
