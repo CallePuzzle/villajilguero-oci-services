@@ -37,23 +37,34 @@ spec:
                         ],
                 ],
               );
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            runAsNonRoot: true
+            readOnlyRootFilesystem: false
+
+          podSecurityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            runAsNonRoot: true
+            readOnlyRootFilesystem: false
         livenessProbe:
-          enabled: false
+          enabled: true
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
           successThreshold: 1
         readinessProbe:
-          enabled: false
+          enabled: true
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
           successThreshold: 1
         startupProbe:
-          enabled: false
-          initialDelaySeconds: 30
+          enabled: true
+          initialDelaySeconds: 120
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 30

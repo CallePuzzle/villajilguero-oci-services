@@ -13,6 +13,11 @@ kind_context="kind-$NAME"
 
 kubectl --context $kind_context apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=90s
+
 terraform init
 terraform apply  -var="kind_context=$kind_context" -auto-approve
 
