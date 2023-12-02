@@ -17,6 +17,9 @@ spec:
     chart: nextcloud
     helm:
       values: |
+        image:
+          repository: nextcloud
+          tag: 27.1.4-apache
         ingress:
           enabled: true
           className: nginx
