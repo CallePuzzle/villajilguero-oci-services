@@ -70,16 +70,16 @@ spec:
                 secretKeyRef:
                   name: nextcloud
                   key: bucket-secret-key
-          securityContext:
-            runAsUser: 33
-            runAsGroup: 33
-            runAsNonRoot: true
-            readOnlyRootFilesystem: false
-          podSecurityContext:
-            runAsUser: 33
-            runAsGroup: 33
-            runAsNonRoot: true
-            readOnlyRootFilesystem: false
+          #securityContext:
+          #  runAsUser: 33
+          #  runAsGroup: 33
+          #  runAsNonRoot: true
+          #  readOnlyRootFilesystem: false
+          #podSecurityContext:
+          #  runAsUser: 33
+          #  runAsGroup: 33
+          #  runAsNonRoot: true
+          #  readOnlyRootFilesystem: false
         livenessProbe:
           enabled: false
           initialDelaySeconds: 10
