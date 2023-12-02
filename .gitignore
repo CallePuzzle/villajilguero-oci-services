@@ -33,5 +33,10 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# kind config
+# test
 test/kind-config.yaml
+test/secrets.env.yaml
+test/secrets.enc
+
+# sops
+.key.txt

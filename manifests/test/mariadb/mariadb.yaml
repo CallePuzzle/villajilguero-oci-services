@@ -16,14 +16,6 @@ spec:
   host: "%"
   retryInterval: 5s
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: default
-  name: user
-data:
-  password: dXNlcg== # user
----
 apiVersion: mariadb.mmontes.io/v1alpha1
 kind: Database
 metadata:
@@ -54,15 +46,6 @@ spec:
   grantOption: true
   host: "%"
   retryInterval: 5s
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: default
-  name: mariadb
-data:
-  password: bWFyaWFkYg==
-  root-password: bWFyaWFkYg==
 ---
 apiVersion: v1
 kind: ConfigMap

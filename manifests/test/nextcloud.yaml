@@ -21,6 +21,15 @@ spec:
           className: nginx
         nextcloud:
           host: nextcloud.localhost
+          existingSecret:
+            enabled: true
+            secretName: nextcloud
+            usernameKey: username
+            passwordKey: password
+            tokenKey: token
+            #smtpUsernameKey: smtp-username
+            #smtpPasswordKey: smtp-password
+            #smtpHostKey: smtp-host
           configs:
             s3.config.php: |-
               <?php
@@ -28,15 +37,35 @@ spec:
                 'objectstore' => [
                         'class' => '\\OC\\Files\\ObjectStore\\S3',
                         'arguments' => [
-                                'bucket' => 'callepuzzle-nextcloud-temp',
-                                'hostname' => 's3.us-west-004.backblazeb2.com',
-                                'key' => '004bfa80387f28d0000000009',
-                                'secret' => 'K004vdJzBAtaH+7tOa4KGHMcufK52pY',
-                                // required for some non-Amazon S3 implementations
+                                'bucket' => getenv('BUCKET_NAME'),
+                                'hostname' => getenv('BUCKET_HOST'),
+                                'key' => getenv('BUCKET_ACCESS_KEY'),
+                                'secret' => getenv('BUCKET_SECRET_KEY'),
                                 'use_path_style' => true,
                         ],
                 ],
               );
+          extraEnv:
+            - name: BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud
+                  key: bucket-name
+            - name: BUCKET_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud
+                  key: bucket-host
+            - name: BUCKET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud
+                  key: bucket-access-key
+            - name: BUCKET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud
+                  key: bucket-secret-key
           securityContext:
             runAsUser: 33
             runAsGroup: 33
@@ -75,6 +104,9 @@ spec:
           enabled: true
           type: mysql
           host: mariadb
-          user: user
-          password: user
           database: data-test
+          existingSecret:
+            enabled: true
+            secretName: nextcloud
+            usernameKey: db-username
+            passwordKey: db-password

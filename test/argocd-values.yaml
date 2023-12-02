@@ -14,6 +14,62 @@ server:
 
 repoServer:
   replicas: 1
+  initContainers:
+    - name: custom-tools
+      image: alpine:3.8
+      command: ["/bin/sh", "-c"]
+      args:
+        - wget https://github.com/mozilla/sops/releases/download/v3.7.3/sops-v3.7.3.linux.amd64 -O /custom-tools/sops;
+          chmod a+x /custom-tools/sops;
+          wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 -O /custom-tools/jq;
+          chmod a+x /custom-tools/jq;
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /custom-tools/yq;
+          chmod +x /custom-tools/yq;
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  extraContainers:
+    - name: sops
+      command:
+        - "/var/run/argocd/argocd-cmp-server" 
+      image: busybox
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: SOPS_AGE_KEY
+          value: ${SOPS_AGE_KEY}
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        # Remove this volumeMount if you've chosen to bake the config file into the sidecar image.
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: sops.yaml
+          name: argocd-cmp-cm
+        # Starting with v2.4, do NOT mount the same tmp volume as the repo-server container. The filesystem separation helps
+        # mitigate path traversal attacks.
+        - mountPath: /tmp
+          name: cmp-tmp
+        # Mount the custom-tools volume to access the sops binary.
+        - mountPath: /usr/local/bin/sops
+          name: custom-tools
+          subPath: sops
+        - mountPath: /usr/local/bin/jq
+          name: custom-tools
+          subPath: jq
+        - mountPath: /usr/local/bin/yq
+          name: custom-tools
+          subPath: yq
+  volumes:
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: custom-tools
+      emptyDir: {}
 
 applicationSet:
   replicaCount: 1
@@ -25,6 +81,15 @@ notifications:
   enabled: false
 
 configs:
-
   params:
      server.insecure: true
+  cmp:
+    create: true
+    plugins:
+      sops:
+        init:
+          command: ["/bin/sh", "-c"]
+          args: ["if [ -f 'secrets.enc' ]; then echo '---' > secrets.yaml && sops -d --input-type yaml --output-type yaml secrets.enc >> secrets.yaml; fi"]
+        generate:
+          command: ["/bin/sh", "-c"]
+          args: ["cat *.yaml | yq"]
