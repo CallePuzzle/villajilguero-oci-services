@@ -35,7 +35,7 @@ terraform.rc
 
 # test
 test/kind-config.yaml
-test/secrets.env.yaml
+test/secrets.yaml
 test/secrets.enc
 
 # sops

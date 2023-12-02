@@ -54,7 +54,8 @@ applications:
       repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
       targetRevision: develop
       path: manifests/test
-      plugin: {}
+      plugin:
+        name: sops
     destination:
       server: https://kubernetes.default.svc
       namespace: argocd
@@ -87,9 +88,9 @@ resource "local_sensitive_file" "this" {
     NEXTCLOUD_BUCKET_HOST = base64encode("s3.us-west-004.backblazeb2.com")
     NEXTCLOUD_BUCKET_ACCESS_KEY = base64encode(b2_application_key.this.application_key_id)
     NEXTCLOUD_BUCKET_SECRET_KEY = base64encode(b2_application_key.this.application_key)
-    NEXTCLOUD_DB_USERNAME = base64encode("nextcloud")
+    NEXTCLOUD_DB_USERNAME = base64encode("user")
     NEXTCLOUD_DB_PASSWORD = base64encode("nextcloud")
-    NEXTCLOUD_DB_USERNAME_TEXT = "nextcloud"
+    NEXTCLOUD_DB_USERNAME_TEXT = "user"
   })
 }
 
