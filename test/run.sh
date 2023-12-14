@@ -4,6 +4,7 @@ set -o errexit
 
 export NAME=jilgue
 export MARIADB_PATH=$(pwd)/mariadb
+source ~/.b2_env
 
 envsubst < kind-config.yaml.tpl | tee kind-config.yaml
 
