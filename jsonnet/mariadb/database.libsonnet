@@ -11,8 +11,8 @@
         name: 'mariadb',
       },
       passwordSecretKeyRef: {
-        name: 'user',
-        key: 'password',
+        name: 'nextcloud-mariadb',
+        key: 'MYSQL_PASSWORD',
       },
       maxUserConnections: 20,
       host: '%',

@@ -4,6 +4,8 @@ local pvc = k.core.v1.persistentVolumeClaim;
 
 local cm = k.core.v1.configMap;
 
+local secret = k.core.v1.secret;
+
 {
   mariadb: {
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
@@ -127,4 +129,8 @@ local cm = k.core.v1.configMap;
     UMASK: '0660',
     UMASK_DIR: '0750',
   }),
+  secret: secret.new('mariadb', {
+    'root-password': std.base64('password'),
+    password: std.base64('password'),
+  }, 'Opaque'),
 }

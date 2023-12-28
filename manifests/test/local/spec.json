@@ -2,8 +2,8 @@
   "apiVersion": "tanka.dev/v1alpha1",
   "kind": "Environment",
   "metadata": {
-    "name": "environments/default",
-    "namespace": "environments/default/main.jsonnet"
+    "name": "local",
+    "namespace": "local/main.jsonnet"
   },
   "spec": {
     "contextNames": [

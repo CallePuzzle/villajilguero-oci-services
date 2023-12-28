@@ -76,9 +76,22 @@ resource "b2_bucket" "this" {
   bucket_type = "allPrivate"
 }
 
+locals {
+  database = "nextcloud"
+  db_user = "user"
+  db_password = "nextcloud"
+  db_host = "mariadb"
+}
+
 resource "local_sensitive_file" "this" {
   filename = "${path.module}/secrets.yaml"
   content = templatefile("${path.module}/secrets.tftpl", {
+
+    MYSQL_DATABASE = base64encode(local.database)
+    MYSQL_USER = base64encode(local.db_user)
+    MYSQL_PASSWORD = base64encode(local.db_password)
+    MYSQL_HOST = base64encode(local.db_host)
+
     MARIADB_PASSWORD = base64encode("mariadb")
     MARIADB_ROOT_PASSWORD = base64encode("root")
     NEXTCLOUD_USER = base64encode("admin")

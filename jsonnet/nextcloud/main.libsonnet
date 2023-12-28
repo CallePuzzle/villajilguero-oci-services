@@ -10,4 +10,13 @@
   service: (import 'service.libsonnet') + {
     params+: $.params,
   },
+  ingress: (import 'ingress.libsonnet') + {
+    params+: $.params,
+  },
+  persistentVolumeClaim: (import 'pvc.libsonnet') + {
+    params+: $.params,
+  },
+  configmap: (import 'configmap.libsonnet') + {
+    params+: $.params,
+  },
 }

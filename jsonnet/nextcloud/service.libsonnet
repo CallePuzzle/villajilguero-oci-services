@@ -10,6 +10,7 @@ local service = k.core.v1.service;
   },
   local port = k.core.v1.servicePort.newNamed($.params.name, $.params.port, 'http'),
   service: service.new('nextcloud', {
-    app: $.params.name,
-  }, port),
+             app: $.params.name,
+           }, port) +
+           service.metadata.withNamespace($.params.namespace),
 }
