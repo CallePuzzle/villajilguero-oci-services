@@ -3,7 +3,6 @@ local k = import '../vendor/1.28/main.libsonnet';
 local deployment = k.apps.v1.deployment;
 local container = k.core.v1.container;
 local envFrom = k.core.v1.envFromSource;
-local service = k.core.v1.service;
 local mount = k.core.v1.volumeMount;
 local volume = k.core.v1.volume;
 
