@@ -7,12 +7,19 @@ local cm = k.core.v1.configMap;
 local secret = k.core.v1.secret;
 
 {
+  params:: {
+    name: 'mariadb',
+    namespace: error 'namespace is required',
+    version: '11.0.3',
+    storage: '1Gi',
+    backup_storage: '1Gi',
+  },
   mariadb: {
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
     kind: 'MariaDB',
     metadata: {
-      namespace: 'default',
-      name: 'mariadb',
+      namespace: $.params.namespace,
+      name: $.params.name,
     },
     spec: {
       rootPasswordSecretKeyRef: {
@@ -25,13 +32,13 @@ local secret = k.core.v1.secret;
         name: 'mariadb',
         key: 'password',
       },
-      image: 'mariadb:11.0.3',
+      image: 'mariadb:' + $.params.version,
       imagePullPolicy: 'IfNotPresent',
       port: 3306,
       volumeClaimTemplate: {
         resources: {
           requests: {
-            storage: '1Gi',
+            storage: $.params.storage,
           },
         },
         accessModes: [
@@ -66,7 +73,6 @@ local secret = k.core.v1.secret;
           memory: '128Mi',
         },
         limits: {
-          cpu: '300m',
           memory: '512Mi',
         },
       },
@@ -124,7 +130,9 @@ local secret = k.core.v1.secret;
       },
     },
   },
-  backup: pvc.new('mariabackup') + pvc.spec.withAccessModes(['ReadWriteOnce']) + pvc.spec.resources.withRequests({ storage: '1Gi' }),
+  backup: pvc.new('mariabackup') +
+          pvc.spec.withAccessModes(['ReadWriteOnce']) +
+          pvc.spec.resources.withRequests({ storage: $.params.backup_storage }),
   config_map: cm.new('mariadb', {
     UMASK: '0660',
     UMASK_DIR: '0750',

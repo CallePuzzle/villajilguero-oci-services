@@ -4,7 +4,14 @@ local secret = k.core.v1.secret;
 
 {
   minio: import 'minio.jsonnet',
-  mariadb: import '../../../jsonnet/mariadb/main.libsonnet',
+  mariadb: (import '../../../jsonnet/mariadb/main.libsonnet') + {
+    params+: {
+        database+: {
+            user_secret_name: 'nextcloud-mariadb',
+    user_secret_key: 'MYSQL_PASSWORD',
+        }
+    }
+  },
   nextcloud: import '../../../jsonnet/nextcloud/main.libsonnet',
   mariadb_secret: secret.new('nextcloud-mariadb', {
     MYSQL_USER: std.base64('user'),

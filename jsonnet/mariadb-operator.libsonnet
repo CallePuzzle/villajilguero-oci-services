@@ -6,4 +6,4 @@
     target_revision: '0.22.0',
     chart: 'mariadb-operator',
   },
-}
+} + { spec+: { syncPolicy: { syncOptions: ['CreateNamespace=true', 'ServerSideApply=true'] } } }

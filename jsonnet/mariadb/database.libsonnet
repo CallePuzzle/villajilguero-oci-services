@@ -1,18 +1,26 @@
 {
+  params:: {
+    namespace: error 'namespace is required',
+    user_name: 'user',
+    user_secret_name: 'user-secret',
+    user_secret_key: 'user-key',
+    database_name: 'data-test',
+    grant_name: 'grant',
+  },
   user: {
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
     kind: 'User',
     metadata: {
-      namespace: 'default',
-      name: 'user',
+      namespace: $.params.namespace,
+      name: $.params.user_name,
     },
     spec: {
       mariaDbRef: {
         name: 'mariadb',
       },
       passwordSecretKeyRef: {
-        name: 'nextcloud-mariadb',
-        key: 'MYSQL_PASSWORD',
+        name: $.params.user_secret_name,
+        key: $.params.user_secret_key,
       },
       maxUserConnections: 20,
       host: '%',
@@ -23,8 +31,8 @@
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
     kind: 'Database',
     metadata: {
-      namespace: 'default',
-      name: 'data-test',
+      namespace: $.params.namespace,
+      name: $.params.database_name,
     },
     spec: {
       mariaDbRef: {
@@ -39,8 +47,8 @@
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
     kind: 'Grant',
     metadata: {
-      namespace: 'default',
-      name: 'grant',
+      namespace: $.params.namespace,
+      name: $.params.grant_name,
     },
     spec: {
       mariaDbRef: {
@@ -49,9 +57,9 @@
       privileges: [
         'ALL',
       ],
-      database: 'data-test',
+      database: $.params.database_name,
       table: '*',
-      username: 'user',
+      username: $.params.user_name,
       grantOption: true,
       host: '%',
       retryInterval: '5s',
