@@ -1,0 +1,17 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "operators",
+    "namespace": "operators/main.jsonnet"
+  },
+  "spec": {
+    "applyStrategy": "server",
+    "contextNames": [
+      "kind-jilgue"
+    ],
+    "namespace": "default",
+    "resourceDefaults": {},
+    "expectVersions": {}
+  }
+}
