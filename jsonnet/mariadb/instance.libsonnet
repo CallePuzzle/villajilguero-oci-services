@@ -131,14 +131,15 @@ local secret = k.core.v1.secret;
     },
   },
   backup: pvc.new('mariabackup') +
+          pvc.metadata.withNamespace($.params.namespace) +
           pvc.spec.withAccessModes(['ReadWriteOnce']) +
           pvc.spec.resources.withRequests({ storage: $.params.backup_storage }),
   config_map: cm.new('mariadb', {
     UMASK: '0660',
     UMASK_DIR: '0750',
-  }),
+  }) + cm.metadata.withNamespace($.params.namespace),
   secret: secret.new('mariadb', {
     'root-password': std.base64('password'),
     password: std.base64('password'),
-  }, 'Opaque'),
+  }) + secret.metadata.withNamespace($.params.namespace),
 }
