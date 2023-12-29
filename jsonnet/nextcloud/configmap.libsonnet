@@ -4,6 +4,7 @@ local configmap = k.core.v1.configMap;
 
 {
   params:: {
+    namespace: error 'namespace is required',
     nginx_config: |||
 
       worker_processes auto;
@@ -214,5 +215,5 @@ local configmap = k.core.v1.configMap;
   },
   nginx_config: configmap.new('nextcloud-nginx-default', {
     'nginx.conf': $.params.nginx_config,
-  }),
+  }) + configmap.metadata.withNamespace($.params.namespace),
 }
