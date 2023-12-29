@@ -6,11 +6,11 @@ local secret = k.core.v1.secret;
   minio: import 'minio.jsonnet',
   mariadb: (import '../../../jsonnet/mariadb/main.libsonnet') + {
     params+: {
-        database+: {
-            user_secret_name: 'nextcloud-mariadb',
-    user_secret_key: 'MYSQL_PASSWORD',
-        }
-    }
+      database+: {
+        user_secret_name: 'nextcloud-mariadb',
+        user_secret_key: 'MYSQL_PASSWORD',
+      },
+    },
   },
   nextcloud: import '../../../jsonnet/nextcloud/main.libsonnet',
   // Generados como json a pelo con sops
