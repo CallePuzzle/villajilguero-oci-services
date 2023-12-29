@@ -8,7 +8,7 @@
   "spec": {
     "applyStrategy": "server",
     "contextNames": [
-      "kind-jilgue"
+      "kind-local"
     ],
     "namespace": "default",
     "resourceDefaults": {},

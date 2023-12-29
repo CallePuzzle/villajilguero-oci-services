@@ -9,8 +9,4 @@ repositories:
 requires:
 - chart: mariadboperator/mariadb-operator
   version: 0.22.0
-- chart: miniooperator/operator
-  version: 5.0.10
-- chart: miniooperator/tenant
-  version: 5.0.10
 version: 1
