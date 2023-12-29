@@ -1,8 +1,14 @@
+local enc_secrets = import 'secrets.json';
+
 local namespace = 'default';
 
 local this = (import '../../../jsonnet/main.libsonnet') + {
     params+: {
         namespace: namespace,
+        database+: {
+            user_name: enc_secrets.nextcloud_mariadb.user,
+            database_name: enc_secrets.nextcloud_mariadb.database,
+        }
     }
 };
 
@@ -13,8 +19,6 @@ local mariadb_operator = {
 local k = import '../../../jsonnet/vendor/1.28/main.libsonnet';
 
 local secret = k.core.v1.secret;
-
-local enc_secrets = import 'secrets.json';
 
 local secrets = {
   mariadb_secret: secret.new('nextcloud-mariadb', {
