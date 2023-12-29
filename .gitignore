@@ -32,3 +32,11 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# test
+test/kind-config.yaml
+test/secrets.yaml
+test/secrets.enc
+
+# sops
+.key.txt

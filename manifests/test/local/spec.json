@@ -1,0 +1,16 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "local",
+    "namespace": "local/main.jsonnet"
+  },
+  "spec": {
+    "contextNames": [
+      "kind-local"
+    ],
+    "namespace": "default",
+    "resourceDefaults": {},
+    "expectVersions": {}
+  }
+}

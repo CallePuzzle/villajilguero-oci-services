@@ -1,0 +1,12 @@
+directory: charts
+repositories:
+- name: stable
+  url: https://charts.helm.sh/stable
+- name: mariadboperator
+  url: https://mariadb-operator.github.io/mariadb-operator
+- name: miniooperator
+  url: https://operator.min.io
+requires:
+- chart: mariadboperator/mariadb-operator
+  version: 0.22.0
+version: 1
