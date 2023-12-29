@@ -1,6 +1,8 @@
+local namespace = 'default';
+
 local this = (import '../../../jsonnet/main.libsonnet') + {
     params+: {
-        namespace: 'default2',
+        namespace: namespace,
     }
 };
 
@@ -16,11 +18,11 @@ local secrets = {
     MYSQL_PASSWORD: std.base64(enc_secrets.nextcloud_mariadb.password),
     MYSQL_DATABASE: std.base64(enc_secrets.nextcloud_mariadb.database),
     MYSQL_HOST: std.base64(enc_secrets.nextcloud_mariadb.host),
-  },),
+  }) + secret.metadata.withNamespace(namespace),
   admin_secret: secret.new('nextcloud-admin', {
     NEXTCLOUD_ADMIN_USER: std.base64(enc_secrets.nextcloud_admin.user),
     NEXTCLOUD_ADMIN_PASSWORD: std.base64(enc_secrets.nextcloud_admin.password),
-  },),
+  }) + secret.metadata.withNamespace(namespace),
   s3_secret: secret.new('nextcloud-s3', {
     OBJECTSTORE_S3_HOST: std.base64(enc_secrets.nextcloud_s3.host),
     OBJECTSTORE_S3_BUCKET: std.base64(enc_secrets.nextcloud_s3.bucket),
@@ -28,7 +30,7 @@ local secrets = {
     OBJECTSTORE_S3_SECRET: std.base64(enc_secrets.nextcloud_s3.secret),
     OBJECTSTORE_S3_USEPATH_STYLE: std.base64('true'),
     OBJECTSTORE_S3_SSL: std.base64('true'),
-  }),
+  }) + secret.metadata.withNamespace(namespace),
 };
 
 std.objectValues(this) + std.objectValues(secrets)
