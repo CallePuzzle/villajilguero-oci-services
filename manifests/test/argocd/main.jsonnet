@@ -21,6 +21,14 @@ local secrets = {
     NEXTCLOUD_ADMIN_USER: std.base64(enc_secrets.nextcloud_admin.user),
     NEXTCLOUD_ADMIN_PASSWORD: std.base64(enc_secrets.nextcloud_admin.password),
   },),
+  s3_secret: secret.new('nextcloud-s3', {
+    OBJECTSTORE_S3_HOST: std.base64(enc_secrets.nextcloud_s3.host),
+    OBJECTSTORE_S3_BUCKET: std.base64(enc_secrets.nextcloud_s3.bucket),
+    OBJECTSTORE_S3_KEY: std.base64(enc_secrets.nextcloud_s3.key),
+    OBJECTSTORE_S3_SECRET: std.base64(enc_secrets.nextcloud_s3.secret),
+    OBJECTSTORE_S3_USEPATH_STYLE: std.base64('true'),
+    OBJECTSTORE_S3_SSL: std.base64('true'),
+  }),
 };
 
 std.objectValues(this) + std.objectValues(secrets)
