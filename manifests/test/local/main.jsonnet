@@ -13,6 +13,7 @@ local secret = k.core.v1.secret;
     }
   },
   nextcloud: import '../../../jsonnet/nextcloud/main.libsonnet',
+  // Generados como json a pelo con sops
   mariadb_secret: secret.new('nextcloud-mariadb', {
     MYSQL_USER: std.base64('user'),
     MYSQL_PASSWORD: std.base64('mariadb123'),
@@ -23,6 +24,7 @@ local secret = k.core.v1.secret;
     NEXTCLOUD_ADMIN_USER: std.base64('admin'),
     NEXTCLOUD_ADMIN_PASSWORD: std.base64('admin'),
   }, 'Opaque'),
+  // Generado desde Terraform
   s3_secret: secret.new('nextcloud-s3', {
     OBJECTSTORE_S3_HOST: std.base64('minio'),
     OBJECTSTORE_S3_BUCKET: std.base64('nextcloud'),
