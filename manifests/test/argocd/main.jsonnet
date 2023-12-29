@@ -6,6 +6,10 @@ local this = (import '../../../jsonnet/main.libsonnet') + {
     }
 };
 
+local mariadb_operator = {
+    mariadb_operator: import '../../../jsonnet/mariadb-operator.libsonnet'
+};
+
 local k = import '../../../jsonnet/vendor/1.28/main.libsonnet';
 
 local secret = k.core.v1.secret;
@@ -33,4 +37,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(this) + std.objectValues(secrets)
