@@ -19,12 +19,15 @@ repoServer:
       image: alpine:3.8
       command: ["/bin/sh", "-c"]
       args:
-        - wget https://github.com/mozilla/sops/releases/download/v3.7.3/sops-v3.7.3.linux.amd64 -O /custom-tools/sops;
+        - wget https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.arm64 -O /custom-tools/sops;
           chmod a+x /custom-tools/sops;
-          wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 -O /custom-tools/jq;
-          chmod a+x /custom-tools/jq;
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /custom-tools/yq;
+          wget https://github.com/google/go-jsonnet/releases/download/v0.20.0/go-jsonnet_0.20.0_Linux_arm64.tar.gz -O /tmp/go-jsonnet.tar.gz;
+          tar -xvf /tmp/go-jsonnet.tar.gz -C /tmp;
+          mv /tmp/jsonnet /custom-tools/jsonnet;
+          chmod a+x /custom-tools/jsonnet;
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /custom-tools/yq;
           chmod +x /custom-tools/yq;
+
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
@@ -56,9 +59,9 @@ repoServer:
         - mountPath: /usr/local/bin/sops
           name: custom-tools
           subPath: sops
-        - mountPath: /usr/local/bin/jq
+        - mountPath: /usr/local/bin/jsonnet
           name: custom-tools
-          subPath: jq
+          subPath: jsonnet
         - mountPath: /usr/local/bin/yq
           name: custom-tools
           subPath: yq
@@ -89,7 +92,7 @@ configs:
       sops:
         init:
           command: ["/bin/sh", "-c"]
-          args: ["if [ -f 'secrets.enc' ]; then echo '---' > secrets.yaml && sops -d --input-type yaml --output-type yaml secrets.enc >> secrets.yaml; fi"]
+          args: ["if [ -f 'secrets.enc' ]; then sops -d --input-type json --output-type json secrets.enc >> secrets.json; fi"]
         generate:
           command: ["/bin/sh", "-c"]
-          args: ["cat *.yaml | yq"]
+          args: ["jsonnet main.jsonnet | yq -p json -o yaml >> item.yaml && cat item.yaml"]
