@@ -17,6 +17,7 @@ local volume = k.core.v1.volume;
     s3_secret_name: 'nextcloud-s3',
     s3_configmap_name: 'nextcloud-s3',
     nginx_default_configmap_name: 'nextcloud-nginx-default',
+    redist_external_host: false,
   },
   local nextcloud_container = container.new('nextcloud', 'nextcloud:' + $.params.version + '-fpm') +
                               container.withEnvFrom([
@@ -26,7 +27,9 @@ local volume = k.core.v1.volume;
                               ]) +
                               container.withEnvMap({
                                 NEXTCLOUD_TRUSTED_DOMAINS: 'nextcloud.localhost',
-                              }),
+                              } + if $.params.redist_external_host then {
+                                REDIS_HOST: $.params.redist_external_host,
+                              } else {}),
 
   local nginx = container.new('nginx', 'nginx:1.25') +
                 container.withPorts(k.core.v1.containerPort.newNamed(80, 'http')) +

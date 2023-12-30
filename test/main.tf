@@ -33,7 +33,7 @@ resource "helm_release" "argocd" {
   create_namespace = true
   timeout          = 120
   values           = [templatefile("${path.module}/argocd-values.yaml", {
-    SOPS_AGE_KEY = regex("AGE-SECRET-KEY-[[:alnum:]]+", file("${path.module}/../.key.txt"))
+    SOPS_AGE_KEY = regex("AGE-SECRET-KEY-[[:alnum:]]+", file("${path.module}/.key.txt"))
   })]
 }
 
@@ -54,7 +54,7 @@ applications:
     project: default
     source:
       repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
-      targetRevision: develop
+      targetRevision: main
       path: manifests/test/argocd
       plugin:
         name: sops
