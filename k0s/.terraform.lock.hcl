@@ -5,6 +5,7 @@ provider "registry.terraform.io/backblaze/b2" {
   version     = "0.8.4"
   constraints = "0.8.4"
   hashes = [
+    "h1:iTNGfXzJeiUYsrhnWo/hTO7zgtQiYH9U5xrlSCSb/rU=",
     "h1:vtRe9tVLQqXMJPthxF+lh1uq2xai/FdOUUY8OkPHBqk=",
     "zh:0181814e41ca950f0854d30efd9ac12ed46f031adab9628f768c7f1c3e851a46",
     "zh:d2c76fa03670a9b4b54b768e897ba2a9b6e382eba666850228b041d744619dda",
@@ -18,6 +19,7 @@ provider "registry.terraform.io/carlpett/sops" {
   constraints = "1.0.0"
   hashes = [
     "h1:Ef2u9JLvoQv2TNT6rpuaKQu7Ps5teZKfGSxpoBMMEOk=",
+    "h1:tnN2Mgl0NUF3cg7a0HtGmtOhHcG+tkaT6ncOPRuA9l8=",
     "zh:064e63ea800cd1a8e575064097bc7de6fd5faa8ad50dbb3f2f9d8a3ebc9d7b97",
     "zh:0663900085949d2faf24c170c7cdfbf76e545797915cc331da8304144c02bf27",
     "zh:2ff26c7e5ee356c30791a12dd8e114c6237bd873d09e52805cb30dd5d758ed23",
@@ -31,6 +33,7 @@ provider "registry.terraform.io/carlpett/sops" {
 provider "registry.terraform.io/hashicorp/local" {
   version = "2.4.1"
   hashes = [
+    "h1:FzraUapGrJoH3ZOWiUT2m6QpZAD+HmU+JmqZgM4/o2Y=",
     "h1:gpp25uNkYJYzJVnkyRr7RIBVfwLs9GSq2HNnFpTRBg0=",
     "zh:244b445bf34ddbd167731cc6c6b95bbed231dc4493f8cc34bd6850cfe1f78528",
     "zh:3c330bdb626123228a0d1b1daa6c741b4d5d484ab1c7ae5d2f48d4c9885cc5e9",
@@ -50,6 +53,7 @@ provider "registry.terraform.io/hashicorp/local" {
 provider "registry.terraform.io/hashicorp/oci" {
   version = "5.23.0"
   hashes = [
+    "h1:7dnfZbB0i76xxCL/Qr5xclbLf7QWD1ozUGshgkB6zrs=",
     "h1:kpovt4Uu+rGUeUn2m+cQTQil+sPPdvftigIu5XDviN4=",
     "zh:0279b2be39b1eb0b43c232076f6a94a7b908c75825b5d7d88d1ddf29b01cd0d8",
     "zh:0f4d61b08e8aab8500094dcae2b2ca937dde0d76e08d6a1ac039767d5bcf0fae",
@@ -73,6 +77,7 @@ provider "registry.terraform.io/oracle/oci" {
   version     = "5.23.0"
   constraints = ">= 4.67.3, 5.23.0"
   hashes = [
+    "h1:7dnfZbB0i76xxCL/Qr5xclbLf7QWD1ozUGshgkB6zrs=",
     "h1:kpovt4Uu+rGUeUn2m+cQTQil+sPPdvftigIu5XDviN4=",
     "zh:0279b2be39b1eb0b43c232076f6a94a7b908c75825b5d7d88d1ddf29b01cd0d8",
     "zh:0f4d61b08e8aab8500094dcae2b2ca937dde0d76e08d6a1ac039767d5bcf0fae",

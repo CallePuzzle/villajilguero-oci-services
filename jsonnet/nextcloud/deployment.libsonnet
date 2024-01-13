@@ -17,6 +17,7 @@ local volume = k.core.v1.volume;
     s3_secret_name: 'nextcloud-s3',
     s3_configmap_name: 'nextcloud-s3',
     nginx_default_configmap_name: 'nextcloud-nginx-default',
+    host: 'nextcloud.localhost',
   },
   local nextcloud_container = container.new('nextcloud', 'nextcloud:' + $.params.version + '-fpm') +
                               container.withEnvFrom([
@@ -25,7 +26,7 @@ local volume = k.core.v1.volume;
                                 envFrom.secretRef.withName($.params.admin_secret_name),
                               ]) +
                               container.withEnvMap({
-                                NEXTCLOUD_TRUSTED_DOMAINS: 'nextcloud.localhost',
+                                NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
                               }),
 
   local nginx = container.new('nginx', 'nginx:1.25') +
