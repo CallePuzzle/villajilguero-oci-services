@@ -7,6 +7,7 @@ local ingress = k.networking.v1.ingress;
     name: error 'name is required',
     namespace: error 'namespace is required',
     host: 'nextcloud.localhost',
+    ingress_class_name: 'nginx',
   },
 
   local rule = k.networking.v1.ingressRule.withHost($.params.host) +
@@ -19,5 +20,6 @@ local ingress = k.networking.v1.ingress;
 
   ingress: ingress.new($.params.name) +
            ingress.metadata.withNamespace($.params.namespace) +
-           ingress.spec.withRules([rule]),
+           ingress.spec.withRules([rule]) +
+           ingress.spec.withIngressClassName($.params.ingress_class_name),
 }
