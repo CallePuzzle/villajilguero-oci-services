@@ -5,12 +5,16 @@ local namespace = 'default';
 local this = (import '../jsonnet/main.libsonnet') + {
     params+: {
         namespace: namespace,
+        mariadb+: {
+          storage_class_name: 'openebs-hostpath',
+        },
         database+: {
             user_name: enc_secrets.nextcloud_mariadb.user,
             database_name: enc_secrets.nextcloud_mariadb.database,
         },
         nextcloud+: {
-          host: 'casa.callepuzzle.com'
+          host: 'casa.callepuzzle.com',
+          storage_class_name: 'openebs-hostpath',
         }
     }
 };
