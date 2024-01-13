@@ -10,7 +10,7 @@ local this = (import '../jsonnet/main.libsonnet') + {
             database_name: enc_secrets.nextcloud_mariadb.database,
         },
         nextcloud+: {
-          host: 'casa2.callepuzzle.com'
+          host: 'casa.callepuzzle.com'
         }
     }
 };
