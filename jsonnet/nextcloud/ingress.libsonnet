@@ -20,6 +20,9 @@ local ingress = k.networking.v1.ingress;
 
   ingress: ingress.new($.params.name) +
            ingress.metadata.withNamespace($.params.namespace) +
+           ingress.metadata.withAnnotations({
+             'nginx.ingress.kubernetes.io/proxy-body-size': '512m',
+           }) +
            ingress.spec.withRules([rule]) +
            ingress.spec.withIngressClassName($.params.ingress_class_name),
 }
