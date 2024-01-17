@@ -1,0 +1,127 @@
+redis-ha:
+  enabled: false
+
+controller:
+  replicas: 1
+
+server:
+  replicas: 1
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - ${argocd_host}
+
+repoServer:
+  replicas: 1
+  initContainers:
+    - name: custom-tools
+      image: alpine:3.8
+      command: ["/bin/sh", "-c"]
+      args:
+        - wget https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.arm64 -O /custom-tools/sops;
+          chmod a+x /custom-tools/sops;
+          wget https://github.com/google/go-jsonnet/releases/download/v0.20.0/go-jsonnet_0.20.0_Linux_arm64.tar.gz -O /tmp/go-jsonnet.tar.gz;
+          tar -xvf /tmp/go-jsonnet.tar.gz -C /tmp;
+          mv /tmp/jsonnet /custom-tools/jsonnet;
+          chmod a+x /custom-tools/jsonnet;
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /custom-tools/yq;
+          chmod +x /custom-tools/yq;
+
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  extraContainers:
+    - name: sops
+      command:
+        - "/var/run/argocd/argocd-cmp-server"
+      image: busybox
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: SOPS_AGE_KEY
+          value: ${sops_age_key}
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        # Remove this volumeMount if you've chosen to bake the config file into the sidecar image.
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: sops.yaml
+          name: argocd-cmp-cm
+        # Starting with v2.4, do NOT mount the same tmp volume as the repo-server container. The filesystem separation helps
+        # mitigate path traversal attacks.
+        - mountPath: /tmp
+          name: cmp-tmp
+        # Mount the custom-tools volume to access the sops binary.
+        - mountPath: /usr/local/bin/sops
+          name: custom-tools
+          subPath: sops
+        - mountPath: /usr/local/bin/jsonnet
+          name: custom-tools
+          subPath: jsonnet
+        - mountPath: /usr/local/bin/yq
+          name: custom-tools
+          subPath: yq
+  volumes:
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: custom-tools
+      emptyDir: {}
+
+applicationSet:
+  replicaCount: 1
+
+notifications:
+  enabled: false
+
+configs:
+  params:
+     server.insecure: true
+  cm:
+    url: https://${argocd_host}
+    admin.enabled: false
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: ${github_client_id}
+            clientSecret: ${github_client_secret}
+            redirectURI: "https://argocd-martaneta.callepuzzle.com/api/dex/callback"
+            orgs:
+            - name: CallePuzzle
+  rbac:
+    policy.default: "role:readonly"
+    policy.csv: |
+      p, role:org-admin, applications, *, */*, allow
+      p, role:org-admin, clusters, get, *, allow
+      p, role:org-admin, repositories, get, *, allow
+      p, role:org-admin, repositories, create, *, allow
+      p, role:org-admin, repositories, update, *, allow
+      p, role:org-admin, repositories, delete, *, allow
+      p, role:org-admin, projects, get, *, allow
+      p, role:org-admin, projects, create, *, allow
+      p, role:org-admin, projects, update, *, allow
+      p, role:org-admin, projects, delete, *, allow
+      p, role:org-admin, logs, get, *, allow
+      p, role:org-admin, exec, create, */*, allow
+      g, CallePuzzle, role:org-admin
+  cmp:
+    create: true
+    plugins:
+      sops:
+        init:
+          command: ["/bin/sh", "-c"]
+          args: ["if [ -f 'secrets.enc' ]; then sops -d --input-type json --output-type json secrets.enc > secrets.json; fi"]
+        generate:
+          command: ["/bin/sh", "-c"]
+          args: ["jsonnet main.jsonnet | yq -p json -o yaml >> item.yaml && cat item.yaml"]

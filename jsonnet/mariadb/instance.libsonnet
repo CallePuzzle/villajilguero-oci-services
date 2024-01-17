@@ -13,6 +13,7 @@ local secret = k.core.v1.secret;
     version: '11.0.3',
     storage: '1Gi',
     backup_storage: '1Gi',
+    storage_class_name: 'standard',
   },
   mariadb: {
     apiVersion: 'mariadb.mmontes.io/v1alpha1',
@@ -44,6 +45,7 @@ local secret = k.core.v1.secret;
         accessModes: [
           'ReadWriteOnce',
         ],
+        storageClassName: $.params.storage_class_name,
       },
       volumes: [
         {
@@ -133,7 +135,8 @@ local secret = k.core.v1.secret;
   backup: pvc.new('mariabackup') +
           pvc.metadata.withNamespace($.params.namespace) +
           pvc.spec.withAccessModes(['ReadWriteOnce']) +
-          pvc.spec.resources.withRequests({ storage: $.params.backup_storage }),
+          pvc.spec.resources.withRequests({ storage: $.params.backup_storage }) +
+          pvc.spec.withStorageClassName($.params.storage_class_name),
   config_map: cm.new('mariadb', {
     UMASK: '0660',
     UMASK_DIR: '0750',
