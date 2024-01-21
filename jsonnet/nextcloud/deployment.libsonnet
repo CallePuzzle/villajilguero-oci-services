@@ -27,6 +27,7 @@ local volume = k.core.v1.volume;
                               ]) +
                               container.withEnvMap({
                                 NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
+                                REDIS_HOST: 'dragonfly-sample',
                               }),
 
   local nginx = container.new('nginx', 'nginx:1.25') +
