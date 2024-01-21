@@ -12,6 +12,8 @@
       namespace: 'default',
       port: 8080,
     },
+    dragonfly:: {
+},
   },
   user: ((import 'mariadb/database.libsonnet') + {
            params+: $.params.database {
@@ -74,5 +76,10 @@
                      namespace: $.params.namespace,
                    },
                  }).nginx_config,
+  dragonfly: ((import 'dragonfly/main.libsonnet') + {
+                params+: $.params.dragonfly {
+                  namespace: $.params.namespace,
+                },
+              }).dragonfly,
 
 }
