@@ -5,7 +5,7 @@
     repo_url: 'https://github.com/dragonflydb/dragonfly-operator',
     target_revision: 'v1.0.0',
     path: 'manifests',
-    extra_spec: {
+    extra_source: {
       directory: {
         include: 'dragonfly-operator.yaml',
       },

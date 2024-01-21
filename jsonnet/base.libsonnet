@@ -8,7 +8,7 @@
     path: '',
     chart: '',
     values: '',
-    extra_spec: {},
+    extra_source: {},
   },
   apiVersion: 'argoproj.io/v1alpha1',
   kind: 'Application',
@@ -26,6 +26,7 @@
               repoURL: $.params.repo_url,
               targetRevision: $.params.target_revision,
             } +
+            $.params.extra_source +
             if $.params.path != '' then {
               path: $.params.path,
             } else {} +
@@ -37,5 +38,5 @@
                               values: $.params.values,
                             },
                           } else {},
-  } + $.params.extra_spec,
+  },
 }
