@@ -33,7 +33,7 @@ resource "helm_release" "argocd" {
   create_namespace = true
   timeout          = 120
   values           = [templatefile("${path.module}/argocd-values.yaml", {
-    SOPS_AGE_KEY = regex("AGE-SECRET-KEY-[[:alnum:]]+", file("${path.module}/../.key.txt"))
+    SOPS_AGE_KEY = regex("AGE-SECRET-KEY-[[:alnum:]]+", file("${path.module}/.age-key.txt"))
   })]
 }
 
@@ -54,7 +54,7 @@ applications:
     project: default
     source:
       repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
-      targetRevision: develop
+      targetRevision: 9-redis
       path: manifests/test/argocd
       plugin:
         name: sops
@@ -68,7 +68,7 @@ applications:
 }
 
 resource "b2_application_key" "this" {
-  key_name     = "my-key"
+  key_name     = "callepuzzle-nextcloud-temp"
   capabilities = split(",", "deleteFiles,listBuckets,listFiles,readBucketEncryption,readBucketReplications,readBuckets,readFiles,shareFiles,writeBucketEncryption,writeBucketReplications,writeFiles")
   bucket_id    = b2_bucket.this.bucket_id
 }

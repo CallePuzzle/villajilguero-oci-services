@@ -13,9 +13,6 @@
   metadata: {
     name: $.params.name,
     namespace: 'argocd',
-    finalizers: [
-      'resources-finalizer.argocd.argoproj.io',
-    ],
   },
   spec: {
     destination: {
