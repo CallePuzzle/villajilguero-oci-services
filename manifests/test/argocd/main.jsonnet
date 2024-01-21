@@ -10,7 +10,7 @@ local this = (import '../../../jsonnet/main.libsonnet') + {
             database_name: enc_secrets.nextcloud_mariadb.database,
         },
         nextcloud+: {
-          redis_host: 'nextcloud-redis',
+          redis_host: 'dragonfly-sample',
         }
     }
 };
