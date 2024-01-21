@@ -65,10 +65,10 @@
               },
             }).ingress,
   pvc_html: ((import 'nextcloud/pvc.libsonnet') + {
-                            params+: $.params.nextcloud {
-                              namespace: $.params.namespace,
-                            },
-                          }).html,
+               params+: $.params.nextcloud {
+                 namespace: $.params.namespace,
+               },
+             }).html,
   nginx_config: ((import 'nextcloud/configmap.libsonnet') + {
                    params+: $.params.nextcloud {
                      namespace: $.params.namespace,

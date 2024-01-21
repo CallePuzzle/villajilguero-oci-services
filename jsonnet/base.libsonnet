@@ -5,8 +5,10 @@
     destination_namespace: error 'destination_namespace is required',
     repo_url: error 'repo_url is required',
     target_revision: error 'target_revision is required',
-    chart: error 'chart is required',
+    path: '',
+    chart: '',
     values: '',
+    extra_spec: {},
   },
   apiVersion: 'argoproj.io/v1alpha1',
   kind: 'Application',
@@ -21,14 +23,19 @@
     },
     project: 'default',
     source: {
-      repoURL: $.params.repo_url,
-      targetRevision: $.params.target_revision,
-      chart: $.params.chart,
-    } + if $.params.values != '' then {
-      helm: {
-        values: $.params.values,
-      },
-    } else {
-    },
-  },
+              repoURL: $.params.repo_url,
+              targetRevision: $.params.target_revision,
+            } +
+            if $.params.path != '' then {
+              path: $.params.path,
+            } else {} +
+                   if $.params.chart != '' then {
+                     chart: $.params.chart,
+                   } else {} +
+                          if $.params.values != '' then {
+                            helm: {
+                              values: $.params.values,
+                            },
+                          } else {},
+  } + $.params.extra_spec,
 }
