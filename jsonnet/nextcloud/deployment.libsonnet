@@ -18,6 +18,7 @@ local volume = k.core.v1.volume;
     s3_configmap_name: 'nextcloud-s3',
     nginx_default_configmap_name: 'nextcloud-nginx-default',
     host: 'nextcloud.localhost',
+    redis_host: 'redis-dragonfly',
   },
   local nextcloud_container = container.new('nextcloud', 'nextcloud:' + $.params.version + '-fpm') +
                               container.withEnvFrom([
@@ -27,6 +28,7 @@ local volume = k.core.v1.volume;
                               ]) +
                               container.withEnvMap({
                                 NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
+                                REDIS_HOST: $.params.redis_host,
                               }),
 
   local nginx = container.new('nginx', 'nginx:1.25') +

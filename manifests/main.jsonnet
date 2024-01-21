@@ -15,12 +15,17 @@ local this = (import '../jsonnet/main.libsonnet') + {
         nextcloud+: {
           host: 'casa.callepuzzle.com',
           storage_class_name: 'openebs-hostpath',
+          redis_host: 'redis-dragonfly',
         }
     }
 };
 
 local mariadb_operator = {
     mariadb_operator: import '../jsonnet/mariadb-operator.libsonnet'
+};
+
+local dragonfly_operator = {
+    dragonfly_operator: import '../jsonnet/dragonfly-operator.libsonnet'
 };
 
 local k = import '../jsonnet/vendor/1.28/main.libsonnet';
@@ -48,4 +53,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(this) + std.objectValues(secrets)

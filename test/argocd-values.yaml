@@ -19,13 +19,13 @@ repoServer:
       image: alpine:3.8
       command: ["/bin/sh", "-c"]
       args:
-        - wget https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.arm64 -O /custom-tools/sops;
+        - wget https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64 -O /custom-tools/sops;
           chmod a+x /custom-tools/sops;
-          wget https://github.com/google/go-jsonnet/releases/download/v0.20.0/go-jsonnet_0.20.0_Linux_arm64.tar.gz -O /tmp/go-jsonnet.tar.gz;
+          wget https://github.com/google/go-jsonnet/releases/download/v0.20.0/go-jsonnet_0.20.0_Linux_x86_64.tar.gz -O /tmp/go-jsonnet.tar.gz;
           tar -xvf /tmp/go-jsonnet.tar.gz -C /tmp;
           mv /tmp/jsonnet /custom-tools/jsonnet;
           chmod a+x /custom-tools/jsonnet;
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /custom-tools/yq;
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /custom-tools/yq;
           chmod +x /custom-tools/yq;
 
       volumeMounts:

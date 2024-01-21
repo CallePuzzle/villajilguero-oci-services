@@ -4,7 +4,7 @@ set -o errexit
 
 export NAME=jilgue
 export MARIADB_PATH=$(pwd)/mariadb
-#source ~/.b2_env
+source ~/.b2_env
 
 envsubst < kind-config.yaml.tpl | tee kind-config.yaml
 
@@ -14,7 +14,7 @@ kind_context="kind-$NAME"
 
 kubectl --context $kind_context apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
-sleep 30
+sleep 60
 
 kubectl wait --namespace ingress-nginx \
   --for=condition=ready pod \
