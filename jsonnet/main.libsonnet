@@ -11,9 +11,9 @@
       name: 'nextcloud',
       namespace: 'default',
       port: 8080,
+      redis_host: 'redis-dragonfly',
     },
-    dragonfly:: {
-},
+    dragonfly:: {},
   },
   user: ((import 'mariadb/database.libsonnet') + {
            params+: $.params.database {
@@ -79,6 +79,7 @@
   dragonfly: ((import 'dragonfly/main.libsonnet') + {
                 params+: $.params.dragonfly {
                   namespace: $.params.namespace,
+                  name: $.params.nextcloud.redis_host,
                 },
               }).dragonfly,
 

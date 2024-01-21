@@ -8,6 +8,9 @@ local this = (import '../../../jsonnet/main.libsonnet') + {
         database+: {
             user_name: enc_secrets.nextcloud_mariadb.user,
             database_name: enc_secrets.nextcloud_mariadb.database,
+        },
+        nextcloud+: {
+          redis_host: 'nextcloud-redis',
         }
     }
 };

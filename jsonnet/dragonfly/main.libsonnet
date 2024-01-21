@@ -1,6 +1,12 @@
 {
   params:: {
     namespace: error 'namespace is required',
+    name: 'redis-dragonfly',
+    replicas: 1,
+    limits: {
+      cpu: '200m',
+      memory: '250Mi',
+    },
   },
   dragonfly: {
     apiVersion: 'dragonflydb.io/v1alpha1',
@@ -8,25 +14,21 @@
     metadata: {
       labels: {
         'app.kubernetes.io/name': 'dragonfly',
-        'app.kubernetes.io/instance': 'dragonfly-sample',
+        'app.kubernetes.io/instance': $.params.name,
         'app.kubernetes.io/part-of': 'dragonfly-operator',
-        'app.kubernetes.io/managed-by': 'kustomize',
         'app.kubernetes.io/created-by': 'dragonfly-operator',
       },
-      name: 'dragonfly-sample',
+      name: $.params.name,
       namespace: $.params.namespace,
     },
     spec: {
-      replicas: 1,
+      replicas: $.params.replicas,
       resources: {
         requests: {
-          cpu: '500m',
-          memory: '500Mi',
+          cpu: '100m',
+          memory: '100Mi',
         },
-        limits: {
-          cpu: '600m',
-          memory: '750Mi',
-        },
+        limits: $.params.limits,
       },
     },
   },
