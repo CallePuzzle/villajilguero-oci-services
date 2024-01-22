@@ -11,6 +11,7 @@ local this = (import '../../../jsonnet/main.libsonnet') + {
         },
         nextcloud+: {
           redis_host: 'dragonfly-sample',
+          enable_notify_push: true,
         }
     }
 };

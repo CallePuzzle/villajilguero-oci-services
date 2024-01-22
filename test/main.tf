@@ -54,7 +54,7 @@ applications:
     project: default
     source:
       repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
-      targetRevision: 9-redis
+      targetRevision: 5-nextcloud-client-push
       path: manifests/test/argocd
       plugin:
         name: sops
