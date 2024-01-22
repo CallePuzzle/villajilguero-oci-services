@@ -48,7 +48,7 @@ local volume = k.core.v1.volume;
                       container.withArgs([
                         '/bin/sh',
                         '-c',
-                        './custom_apps/notify_push/bin/$(uname -m)/notify_push --database-url "mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)" --database-prefix "oc_" --redis-url "redis://$(echo $REDIS_HOST)" --nextcloud-url "http://' + $.params.name + ':8080" --port 7867',
+                        './custom_apps/notify_push/bin/$(uname -m)/notify_push --database-url "mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)" --database-prefix "oc_" --redis-url "redis://$(echo $REDIS_HOST)" --nextcloud-url "http://127.0.0.1" --port 7867',
                       ]) +
                       container.securityContext.withRunAsUser(33) +
                       container.withEnvFrom([
