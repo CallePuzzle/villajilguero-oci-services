@@ -16,7 +16,6 @@ local this = (import '../jsonnet/main.libsonnet') + {
           host: 'casa.callepuzzle.com',
           storage_class_name: 'openebs-hostpath',
           redis_host: 'redis-dragonfly',
-          enable_notify_push: true,
         }
     }
 };
