@@ -44,7 +44,7 @@ local volume = k.core.v1.volume;
                         container.withArgs(['sleep', 'infinity']) +
                         container.securityContext.withRunAsUser(33),
 
-  local notify_push = container.new('occ', 'nextcloud:' + $.params.version) +
+  local notify_push = container.new('notify_push', 'nextcloud:' + $.params.version) +
                       container.withArgs([
                         './custom_apps/notify_push/bin/$(uname -m)/notify_push',
                         '--database-url',
