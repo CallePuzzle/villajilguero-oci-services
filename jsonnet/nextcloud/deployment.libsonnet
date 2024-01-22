@@ -51,7 +51,7 @@ local volume = k.core.v1.volume;
                         'mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)',
                         '--database-prefix',
                         'oc_',
-                        '--redis-host',
+                        '--redis-url',
                         'redis://$(echo $REDIS_HOST)',
                         '--nextcloud-url',
                         'http://' + $.params.name + ':8080',
