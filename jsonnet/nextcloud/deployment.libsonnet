@@ -46,7 +46,7 @@ local volume = k.core.v1.volume;
 
   local notify_push = container.new('notify-push', 'nextcloud:' + $.params.version) +
                       container.withArgs([
-                        './custom_apps/notify_push/bin/$(uname -m)/notify_push',
+                        './custom_apps/notify_push/bin/x86_64/notify_push',
                         '--database-url',
                         'mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)',
                         '--database-prefix',
