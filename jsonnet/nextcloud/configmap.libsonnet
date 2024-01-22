@@ -2,9 +2,21 @@ local k = import '../vendor/1.28/main.libsonnet';
 
 local configmap = k.core.v1.configMap;
 
+local notify_push = |||
+  location ^~ /push/ {
+      proxy_pass http://127.0.0.1:7867/;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+|||;
+
 {
   params:: {
     namespace: error 'namespace is required',
+    enable_notify_push: false,
     nginx_config: |||
 
       worker_processes auto;
@@ -12,11 +24,9 @@ local configmap = k.core.v1.configMap;
       error_log  /var/log/nginx/error.log warn;
       pid        /var/run/nginx.pid;
 
-
       events {
           worker_connections  1024;
       }
-
 
       http {
           include mime.types;
@@ -209,9 +219,13 @@ local configmap = k.core.v1.configMap;
               location / {
                   try_files $uri $uri/ /index.php$request_uri;
               }
+
+              %(notify_push)s
           }
       }
-    |||,
+    ||| % {
+      notify_push: if $.params.enable_notify_push then notify_push else '',
+    },
   },
   nginx_config: configmap.new('nextcloud-nginx-default', {
     'nginx.conf': $.params.nginx_config,

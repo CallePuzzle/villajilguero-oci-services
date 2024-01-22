@@ -19,6 +19,7 @@ local volume = k.core.v1.volume;
     nginx_default_configmap_name: 'nextcloud-nginx-default',
     host: 'nextcloud.localhost',
     redis_host: 'redis-dragonfly',
+    enable_notify_push: false,
   },
   local nextcloud_container = container.new('nextcloud', 'nextcloud:' + $.params.version + '-fpm') +
                               container.withEnvFrom([
@@ -43,8 +44,36 @@ local volume = k.core.v1.volume;
                         container.withArgs(['sleep', 'infinity']) +
                         container.securityContext.withRunAsUser(33),
 
+  local notify_push = container.new('occ', 'nextcloud:' + $.params.version) +
+                      container.withArgs([
+                        './custom_apps/notify_push/bin/$(uname -m)/notify_push',
+                        '--database-url',
+                        'mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)',
+                        '--database-prefix',
+                        'oc_',
+                        '--redis-host',
+                        'redis://$(echo $REDIS_HOST)',
+                        '--nextcloud-url',
+                        'http://' + $.params.name + ':8080',
+                        '--port',
+                        '7867',
+                      ]) +
+                      container.securityContext.withRunAsUser(33) +
+                      container.withEnvFrom([
+                        envFrom.secretRef.withName($.params.db_secret_name),
+                      ]) +
+                      container.withEnvMap({
+                        NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
+                        REDIS_HOST: $.params.redis_host,
+                      }),
+
+  local containers = if $.params.enable_notify_push then
+    [nextcloud_container, nginx, nextcloud_occ, notify_push]
+  else
+    [nextcloud_container, nginx, nextcloud_occ],
+
   deployment: deployment.new(
-                $.params.name, 1, [nextcloud_container, nginx, nextcloud_occ], {
+                $.params.name, 1, containers, {
                   app: $.params.name,
                 },
               ) +
