@@ -37,7 +37,7 @@ module "oci-k0s" {
 
   manifests_source = {
     repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
-    target_revision = "nextcloud"
+    target_revision = "main"
     path            = "manifests"
     plugin          = "sops"
   }

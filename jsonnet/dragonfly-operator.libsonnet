@@ -2,8 +2,8 @@
   params+:: {
     name: 'dragonfly-operator',
     destination_namespace: 'dragonfly-operator-system',
-    repo_url: 'https://github.com/dragonflydb/dragonfly-operator',
-    target_revision: 'v1.0.0',
+    repo_url: 'https://github.com/CallePuzzle/villajilguero-oci-services',
+    target_revision: 'main',
     path: 'manifests',
     extra_source: {
       directory: {
