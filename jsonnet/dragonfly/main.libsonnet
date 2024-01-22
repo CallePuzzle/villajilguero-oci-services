@@ -4,8 +4,8 @@
     name: 'redis-dragonfly',
     replicas: 1,
     limits: {
-      cpu: '200m',
-      memory: '250Mi',
+      cpu: '600m',
+      memory: '600Mi',
     },
   },
   dragonfly: {
@@ -25,8 +25,8 @@
       replicas: $.params.replicas,
       resources: {
         requests: {
-          cpu: '100m',
-          memory: '100Mi',
+          cpu: '500m',
+          memory: '500Mi',
         },
         limits: $.params.limits,
       },
