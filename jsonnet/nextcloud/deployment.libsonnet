@@ -40,29 +40,41 @@ local volume = k.core.v1.volume;
                   ]
                 ),
 
-  local nextcloud_occ = container.new('occ', 'nextcloud:' + $.params.version) +
+  local nextcloud_cron = container.new('cron', 'nextcloud:' + $.params.version + '-fpm') +
+                         container.withArgs(['/cron.sh']) +
+                         container.withEnvFrom([
+                           envFrom.secretRef.withName($.params.db_secret_name),
+                           envFrom.secretRef.withName($.params.s3_secret_name),
+                           envFrom.secretRef.withName($.params.admin_secret_name),
+                         ]) +
+                         container.withEnvMap({
+                           NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
+                           REDIS_HOST: $.params.redis_host,
+                         }),
+
+  local nextcloud_occ = container.new('occ', 'nextcloud:' + $.params.version + '-fpm') +
                         container.withArgs(['sleep', 'infinity']) +
                         container.securityContext.withRunAsUser(33),
 
-  local notify_push = container.new('notify-push', 'nextcloud:' + $.params.version) +
-                      container.withArgs([
-                        '/bin/sh',
-                        '-c',
-                        './custom_apps/notify_push/bin/$(uname -m)/notify_push --database-url "mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)" --database-prefix "oc_" --redis-url "redis://$(echo $REDIS_HOST)" --nextcloud-url "http://127.0.0.1" --port 7867',
-                      ]) +
-                      container.securityContext.withRunAsUser(33) +
-                      container.withEnvFrom([
-                        envFrom.secretRef.withName($.params.db_secret_name),
-                      ]) +
-                      container.withEnvMap({
-                        NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
-                        REDIS_HOST: $.params.redis_host,
-                      }),
+  local nextcloud_push = container.new('push', 'nextcloud:' + $.params.version + '-fpm') +
+                         container.withArgs([
+                           '/bin/sh',
+                           '-c',
+                           './custom_apps/notify_push/bin/$(uname -m)/notify_push --database-url "mysql://$(echo $MYSQL_USER):$(echo $MYSQL_PASSWORD)@$(echo $MYSQL_HOST)/$(echo $MYSQL_DATABASE)" --database-prefix "oc_" --redis-url "redis://$(echo $REDIS_HOST)" --nextcloud-url "http://127.0.0.1" --port 7867',
+                         ]) +
+                         container.securityContext.withRunAsUser(33) +
+                         container.withEnvFrom([
+                           envFrom.secretRef.withName($.params.db_secret_name),
+                         ]) +
+                         container.withEnvMap({
+                           NEXTCLOUD_TRUSTED_DOMAINS: $.params.host,
+                           REDIS_HOST: $.params.redis_host,
+                         }),
 
   local containers = if $.params.enable_notify_push then
-    [nextcloud_container, nginx, nextcloud_occ, notify_push]
+    [nextcloud_container, nginx, nextcloud_cron, nextcloud_occ, nextcloud_push]
   else
-    [nextcloud_container, nginx, nextcloud_occ],
+    [nextcloud_container, nginx, nextcloud_cron, nextcloud_occ],
 
   deployment: deployment.new(
                 $.params.name, 1, containers, {
