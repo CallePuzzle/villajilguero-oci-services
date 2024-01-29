@@ -7,6 +7,7 @@ local this = (import '../jsonnet/main.libsonnet') + {
         namespace: namespace,
         mariadb+: {
           storage_class_name: 'openebs-hostpath',
+          storage: '10Gi',
         },
         database+: {
             user_name: enc_secrets.nextcloud_mariadb.user,
