@@ -22,7 +22,7 @@
       storage: {
         s3: {
           bucket: $.params.bucket,
-          endpoint: $.params.endpoint,
+          endpoint: 'https://' + $.params.endpoint,
           accessKeyIdSecretKeyRef: {
             name: $.params.access_secret_name,
             key: 'OBJECTSTORE_S3_KEY',
@@ -31,10 +31,6 @@
             name: $.params.access_secret_name,
             key: 'OBJECTSTORE_S3_SECRET',
           },
-          region: 'us-east-1',
-          tls: {
-            enabled: true,
-          }
         },
       },
     },
