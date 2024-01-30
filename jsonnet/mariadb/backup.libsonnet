@@ -23,6 +23,7 @@
         s3: {
           bucket: $.params.bucket,
           endpoint: $.params.endpoint,
+          region:  'us-east-1',
           accessKeyIdSecretKeyRef: {
             name: $.params.access_secret_name,
             key: 'OBJECTSTORE_S3_KEY',
