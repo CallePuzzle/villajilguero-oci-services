@@ -23,6 +23,7 @@
         s3: {
           bucket: $.params.bucket,
           endpoint: 'https://' + $.params.endpoint,
+          prefix: $.params.name + '/backup/',
           accessKeyIdSecretKeyRef: {
             name: $.params.access_secret_name,
             key: 'OBJECTSTORE_S3_KEY',
