@@ -35,7 +35,7 @@
                 namespace: $.params.namespace,
               },
             }).mariadb,
-  backup: ((import 'mariadb/instance.libsonnet') + {
+  backup: ((import 'mariadb/backup.libsonnet') + {
              params+: $.params.mariadb {
                namespace: $.params.namespace,
              },

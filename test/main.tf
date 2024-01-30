@@ -54,7 +54,7 @@ applications:
     project: default
     source:
       repoURL: https://github.com/CallePuzzle/villajilguero-oci-services.git
-      targetRevision: 5-nextcloud-client-push
+      targetRevision: 8-probar-mariadb-operator-backup
       path: manifests/test/argocd
       plugin:
         name: sops

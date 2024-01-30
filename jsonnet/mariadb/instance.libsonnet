@@ -47,20 +47,6 @@ local secret = k.core.v1.secret;
         ],
         storageClassName: $.params.storage_class_name,
       },
-      volumes: [
-        {
-          name: 'mariabackup',
-          persistentVolumeClaim: {
-            claimName: 'mariabackup',
-          },
-        },
-      ],
-      volumeMounts: [
-        {
-          name: 'mariabackup',
-          mountPath: '/var/mariadb/backup/',
-        },
-      ],
       myCnf: |||
         [mariadb]
         bind-address=*
@@ -132,11 +118,6 @@ local secret = k.core.v1.secret;
       },
     },
   },
-  backup: pvc.new('mariabackup') +
-          pvc.metadata.withNamespace($.params.namespace) +
-          pvc.spec.withAccessModes(['ReadWriteOnce']) +
-          pvc.spec.resources.withRequests({ storage: $.params.backup_storage }) +
-          pvc.spec.withStorageClassName($.params.storage_class_name),
   config_map: cm.new('mariadb', {
     UMASK: '0660',
     UMASK_DIR: '0750',
