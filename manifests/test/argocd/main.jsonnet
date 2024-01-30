@@ -16,6 +16,7 @@ local this = (import '../../../jsonnet/main.libsonnet') + {
         mariadb+: {
           bucket: enc_secrets.nextcloud_s3.bucket,
           endpoint: enc_secrets.nextcloud_s3.host,
+          storage: '2Gi',
         },
     }
 };
