@@ -20,20 +20,34 @@
       },
       maxRetention: $.params.max_retention,
       storage: {
-        s3: {
-          bucket: $.params.bucket,
-          endpoint: 'https://' + $.params.endpoint,
-          prefix: $.params.name + '/backup/',
-          accessKeyIdSecretKeyRef: {
-            name: $.params.access_secret_name,
-            key: 'OBJECTSTORE_S3_KEY',
+        //s3: {
+        //  bucket: $.params.bucket,
+        //  endpoint: 'https://' + $.params.endpoint,
+        //  prefix: $.params.name + '/backup/',
+        //  accessKeyIdSecretKeyRef: {
+        //    name: $.params.access_secret_name,
+        //    key: 'OBJECTSTORE_S3_KEY',
+        //  },
+        //  secretAccessKeySecretKeyRef: {
+        //    name: $.params.access_secret_name,
+        //    key: 'OBJECTSTORE_S3_SECRET',
+        //  },
+        //},
+        persistentVolumeClaim: {
+          resources: {
+            requests: {
+              storage: '1Gi',
+            },
           },
-          secretAccessKeySecretKeyRef: {
-            name: $.params.access_secret_name,
-            key: 'OBJECTSTORE_S3_SECRET',
-          },
+          accessModes: [
+            'ReadWriteOnce',
+          ],
         },
       },
+      args: [
+        '--single-transaction',
+        '--all-databases',
+      ],
     },
   },
 }
