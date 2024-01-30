@@ -31,6 +31,10 @@
             name: $.params.access_secret_name,
             key: 'OBJECTSTORE_S3_SECRET',
           },
+          region: 'us-east-1',
+          tls: {
+            enabled: true,
+          }
         },
       },
     },
