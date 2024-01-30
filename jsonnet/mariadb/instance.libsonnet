@@ -47,20 +47,26 @@ local secret = k.core.v1.secret;
         ],
         storageClassName: $.params.storage_class_name,
       },
-      volumes: [
-        {
-          name: 'mariabackup',
-          persistentVolumeClaim: {
-            claimName: 'mariabackup',
-          },
+      //volumes: [
+      //  {
+      //    name: 'mariabackup',
+      //    persistentVolumeClaim: {
+      //      claimName: 'mariabackup',
+      //    },
+      //  },
+      //],
+      //volumeMounts: [
+      //  {
+      //    name: 'mariabackup',
+      //    mountPath: '/var/mariadb/backup/',
+      //  },
+      //],
+      bootstrapFrom: {
+        backupRef: {
+          name: $.params.name,
         },
-      ],
-      volumeMounts: [
-        {
-          name: 'mariabackup',
-          mountPath: '/var/mariadb/backup/',
-        },
-      ],
+        targetRecoveryTime: '2024-01-30T20:28:18Z',
+      },
       myCnf: |||
         [mariadb]
         bind-address=*
