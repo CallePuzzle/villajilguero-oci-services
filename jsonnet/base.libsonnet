@@ -27,16 +27,19 @@
               targetRevision: $.params.target_revision,
             } +
             $.params.extra_source +
-            if $.params.path != '' then {
-              path: $.params.path,
+
+            if $.params.values != '' then {
+              helm: {
+                values: $.params.values,
+              },
             } else {} +
-                   if $.params.chart != '' then {
-                     chart: $.params.chart,
+
+                   if $.params.path != '' then {
+                     path: $.params.path,
                    } else {} +
-                          if $.params.values != '' then {
-                            helm: {
-                              values: $.params.values,
-                            },
+
+                          if $.params.chart != '' then {
+                            chart: $.params.chart,
                           } else {},
   },
 }
