@@ -33,6 +33,10 @@ local dragonfly_operator = {
     dragonfly_operator: import '../jsonnet/dragonfly-operator.libsonnet'
 };
 
+local grafan_alloy = {
+    grafana_alloy: import '../jsonnet/grafana-alloy.libsonnet'
+};
+
 local k = import '../jsonnet/vendor/1.28/main.libsonnet';
 
 local secret = k.core.v1.secret;
@@ -58,4 +62,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafan_alloy) + std.objectValues(this) + std.objectValues(secrets)
