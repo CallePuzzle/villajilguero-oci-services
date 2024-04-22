@@ -40,7 +40,7 @@ local grafan_alloy = {
         alloy:
           envFrom:
             - secretRef:
-              name: grafana-alloy
+                name: grafana-alloy
           configMap:
             content: |-
                 logging {
