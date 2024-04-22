@@ -10,4 +10,4 @@
     chart: 'k8s-monitoring',
     values: $.grafana_monitoring.values,
   },
-} + { spec+: { syncPolicy: { syncOptions: ['CreateNamespace=true'] } } }
+} + { spec+: { syncPolicy: { syncOptions: ['CreateNamespace=true', 'ServerSideApply=true'] } } }
