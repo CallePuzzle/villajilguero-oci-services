@@ -33,51 +33,6 @@ local dragonfly_operator = {
   dragonfly_operator: import '../jsonnet/dragonfly-operator.libsonnet',
 };
 
-local alloy_config_map_content = |||
-  logging {
-    level  = "info"
-  	format = "logfmt"
-  }
-  discovery.kubernetes "pods" {
-    role = "pod"
-  }
-  discovery.kubernetes "nodes" {
-    role = "node"
-  }
-  discovery.kubernetes "services" {
-    role = "service"
-  }
-  discovery.kubernetes "endpoints" {
-    role = "endpoints"
-  }
-  discovery.kubernetes "endpointslices" {
-    role = "endpointslice"
-  }
-  discovery.kubernetes "ingresses" {
-    role = "ingress"
-  }
-
-  prometheus.remote_write "grafana_cloud_prometheus" {
-    endpoint {
-        url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
-        basic_auth {
-            username = 1539321
-            password = env("GRAFANA_CLOUD_API_KEY")
-        }
-    }
-  }
-
-  loki.write "grafana_cloud_loki" {
-    endpoint {
-      url = "https://logs-prod-012.grafana.net/loki/api/v1/push"
-      basic_auth {
-        username = 870117
-        password = env("GRAFANA_CLOUD_API_KEY")
-      }
-    }
-  }
-|||;
-
 local grafan_alloy = {
   grafana_alloy: (import '../jsonnet/grafana-alloy.libsonnet') + {
     grafana_alloy+: {
@@ -88,10 +43,49 @@ local grafan_alloy = {
               name: grafana-alloy
           configMap:
             content: |-
-              %(content)s
-      ||| % {
-        content: alloy_config_map_content,
-      },
+                logging {
+                  level  = "info"
+                  format = "logfmt"
+                }
+                discovery.kubernetes "pods" {
+                  role = "pod"
+                }
+                discovery.kubernetes "nodes" {
+                  role = "node"
+                }
+                discovery.kubernetes "services" {
+                  role = "service"
+                }
+                discovery.kubernetes "endpoints" {
+                  role = "endpoints"
+                }
+                discovery.kubernetes "endpointslices" {
+                  role = "endpointslice"
+                }
+                discovery.kubernetes "ingresses" {
+                  role = "ingress"
+                }
+
+                prometheus.remote_write "grafana_cloud_prometheus" {
+                  endpoint {
+                      url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
+                      basic_auth {
+                          username = 1539321
+                          password = env("GRAFANA_CLOUD_API_KEY")
+                      }
+                  }
+                }
+
+                loki.write "grafana_cloud_loki" {
+                  endpoint {
+                    url = "https://logs-prod-012.grafana.net/loki/api/v1/push"
+                    basic_auth {
+                      username = 870117
+                      password = env("GRAFANA_CLOUD_API_KEY")
+                    }
+                  }
+                }
+      |||,
     },
   },
 };
