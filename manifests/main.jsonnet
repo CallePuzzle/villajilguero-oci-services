@@ -8,17 +8,19 @@ local this = (import '../jsonnet/main.libsonnet') + {
         mariadb+: {
           storage_class_name: 'openebs-hostpath',
           storage: '10Gi',
+          backup_storage: '2Gi',
         },
         database+: {
             user_name: enc_secrets.nextcloud_mariadb.user,
             database_name: enc_secrets.nextcloud_mariadb.database,
         },
         nextcloud+: {
-          version: '28.0.3',
+          version: '28.0.4',
           host: 'casa.callepuzzle.com',
           storage_class_name: 'openebs-hostpath',
           redis_host: 'redis-dragonfly',
           enable_notify_push: true,
+          storage: '5Gi',
         }
     }
 };
