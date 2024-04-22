@@ -1,3 +1,17 @@
+local get_path(path) = if path != '' then {
+  path: path,
+} else {};
+
+local get_chart(chart) = if chart != '' then {
+  chart: chart,
+} else {};
+
+local get_values(values) = if values != '' then {
+  helm: {
+    values: values,
+  },
+} else {};
+
 {
   params:: {
     name: error 'name is required',
@@ -27,19 +41,8 @@
               targetRevision: $.params.target_revision,
             } +
             $.params.extra_source +
-
-            if $.params.values != '' then {
-              helm: {
-                values: $.params.values,
-              },
-            } else {} +
-
-                   if $.params.path != '' then {
-                     path: $.params.path,
-                   } else {} +
-
-                          if $.params.chart != '' then {
-                            chart: $.params.chart,
-                          } else {},
+            get_path($.params.path) +
+            get_chart($.params.chart) +
+            get_values($.params.values),
   },
 }
