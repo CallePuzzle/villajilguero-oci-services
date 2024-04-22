@@ -33,59 +33,62 @@ local dragonfly_operator = {
   dragonfly_operator: import '../jsonnet/dragonfly-operator.libsonnet',
 };
 
-local grafan_alloy = {
-  grafana_alloy: (import '../jsonnet/grafana-alloy.libsonnet') + {
-    grafana_alloy+: {
+local grafana_monitoring = {
+  grafana_monitoring: (import '../jsonnet/grafana-monitoring.libsonnet') + {
+    grafana_monitoring+: {
       values: |||
-        alloy:
-          envFrom:
-            - secretRef:
-                name: grafana-alloy
-          configMap:
-            content: |-
-                logging {
-                  level  = "info"
-                  format = "logfmt"
-                }
-                discovery.kubernetes "pods" {
-                  role = "pod"
-                }
-                discovery.kubernetes "nodes" {
-                  role = "node"
-                }
-                discovery.kubernetes "services" {
-                  role = "service"
-                }
-                discovery.kubernetes "endpoints" {
-                  role = "endpoints"
-                }
-                discovery.kubernetes "endpointslices" {
-                  role = "endpointslice"
-                }
-                discovery.kubernetes "ingresses" {
-                  role = "ingress"
-                }
-
-                prometheus.remote_write "grafana_cloud_prometheus" {
-                  endpoint {
-                      url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
-                      basic_auth {
-                          username = 1539321
-                          password = env("GRAFANA_CLOUD_API_KEY")
-                      }
-                  }
-                }
-
-                loki.write "grafana_cloud_loki" {
-                  endpoint {
-                    url = "https://logs-prod-012.grafana.net/loki/api/v1/push"
-                    basic_auth {
-                      username = 870117
-                      password = env("GRAFANA_CLOUD_API_KEY")
-                    }
-                  }
-                }
-      |||,
+        cluster:
+          name: my-cluster
+        externalServices:
+          prometheus:
+            host: https://prometheus-prod-24-prod-eu-west-2.grafana.net
+            basicAuth:
+              username: "1539321"
+              password: %(grafana_cloud_api_key)s
+          loki:
+            host: https://logs-prod-012.grafana.net
+            basicAuth:
+              username: "870117"
+              password: %(grafana_cloud_api_key)s
+          tempo:
+            host: https://tempo-prod-10-prod-eu-west-2.grafana.net:443
+            basicAuth:
+              username: "864433"
+              password: %(grafana_cloud_api_key)s
+        metrics:
+          enabled: true
+          cost:
+            enabled: false
+          node-exporter:
+            enabled: true
+        logs:
+          enabled: true
+          pod_logs:
+            enabled: true
+          cluster_events:
+            enabled: true
+        traces:
+          enabled: true
+        receivers:
+          grpc:
+            enabled: true
+          http:
+            enabled: true
+          zipkin:
+            enabled: true
+        opencost:
+          enabled: false
+        kube-state-metrics:
+          enabled: true
+        prometheus-node-exporter:
+          enabled: true
+        prometheus-operator-crds:
+          enabled: true
+        alloy: {}
+        alloy-logs: {}
+      ||| % {
+        grafana_cloud_api_key: enc_secrets.grafana_cloud.api_key,
+      },
     },
   },
 };
@@ -113,9 +116,6 @@ local secrets = {
     OBJECTSTORE_S3_USEPATH_STYLE: std.base64('true'),
     OBJECTSTORE_S3_SSL: std.base64('true'),
   }) + secret.metadata.withNamespace(namespace),
-  grafan_alloy_secret: secret.new('grafana-alloy', {
-    GRAFANA_CLOUD_API_KEY: std.base64(enc_secrets.grafana_cloud.api_key),
-  }) + secret.metadata.withNamespace('alloy'),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafan_alloy) + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(this) + std.objectValues(secrets)

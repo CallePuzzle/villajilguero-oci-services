@@ -1,13 +1,13 @@
 (import './base.libsonnet') + {
-  grafana_alloy:: {
+  grafana_monitoring:: {
     values: '',
   },
   params+:: {
-    name: 'alloy',
-    destination_namespace: 'alloy',
+    name: 'grafana-monitoring',
+    destination_namespace: 'monitoring',
     repo_url: 'https://grafana.github.io/helm-charts',
-    target_revision: '0.1.1',
-    chart: 'alloy',
-    values: $.grafana_alloy.values,
+    target_revision: '1.0.1',
+    chart: 'k8s-monitorin',
+    values: $.grafana_monitoring.values,
   },
 } + { spec+: { syncPolicy: { syncOptions: ['CreateNamespace=true'] } } }
