@@ -40,3 +40,5 @@ test/secrets.enc
 
 # sops
 .key.txt
+
+credentials.json

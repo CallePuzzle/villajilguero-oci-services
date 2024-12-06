@@ -32,7 +32,7 @@ resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
   timeout          = 120
-  values           = [templatefile("${path.module}/argocd-values.yaml", {
+  values = [templatefile("${path.module}/argocd-values.yaml", {
     SOPS_AGE_KEY = regex("AGE-SECRET-KEY-[[:alnum:]]+", file("${path.module}/.age-key.txt"))
   })]
 }
@@ -79,11 +79,11 @@ resource "b2_bucket" "this" {
 }
 
 resource "local_sensitive_file" "nextcloud_s3_secrets" {
-  content  = jsonencode({
+  content = jsonencode({
     nextcloud_s3 = {
-      host = "s3.us-west-004.backblazeb2.com"
+      host   = "s3.us-west-004.backblazeb2.com"
       bucket = b2_bucket.this.bucket_name
-      key = b2_application_key.this.application_key_id
+      key    = b2_application_key.this.application_key_id
       secret = b2_application_key.this.application_key
     }
   })
