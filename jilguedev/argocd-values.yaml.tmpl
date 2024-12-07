@@ -1,43 +1,55 @@
 redis-ha:
   enabled: false
 
+redis:
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  metrics:
+    enabled: true
+
 controller:
   replicas: 1
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  metrics:
+    enabled: true
 
 server:
   replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 50m
+      memory: 256Mi
   ingress:
     enabled: true
     ingressClassName: nginx
     annotations:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    hosts:
-      - ${argocd_host}
+    hostname: ${argocd_host}
 
 repoServer:
   replicas: 1
-  initContainers:
-    - name: custom-tools
-      image: alpine:3.8
-      command: ["/bin/sh", "-c"]
-      args:
-        - wget https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.arm64 -O /custom-tools/sops;
-          chmod a+x /custom-tools/sops;
-          wget https://github.com/google/go-jsonnet/releases/download/v0.20.0/go-jsonnet_0.20.0_Linux_arm64.tar.gz -O /tmp/go-jsonnet.tar.gz;
-          tar -xvf /tmp/go-jsonnet.tar.gz -C /tmp;
-          mv /tmp/jsonnet /custom-tools/jsonnet;
-          chmod a+x /custom-tools/jsonnet;
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /custom-tools/yq;
-          chmod +x /custom-tools/yq;
-
-      volumeMounts:
-        - mountPath: /custom-tools
-          name: custom-tools
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
   extraContainers:
-    - name: sops
+    - name: tanka-sops
       command:
         - "/var/run/argocd/argocd-cmp-server"
-      image: busybox
+      image: ghcr.io/callepuzzle/docker-image-tanka-sops:v1.0.0
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
@@ -51,22 +63,12 @@ repoServer:
           name: plugins
         # Remove this volumeMount if you've chosen to bake the config file into the sidecar image.
         - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          subPath: sops.yaml
+          subPath: tanka-sops.yaml
           name: argocd-cmp-cm
         # Starting with v2.4, do NOT mount the same tmp volume as the repo-server container. The filesystem separation helps
         # mitigate path traversal attacks.
         - mountPath: /tmp
           name: cmp-tmp
-        # Mount the custom-tools volume to access the sops binary.
-        - mountPath: /usr/local/bin/sops
-          name: custom-tools
-          subPath: sops
-        - mountPath: /usr/local/bin/jsonnet
-          name: custom-tools
-          subPath: jsonnet
-        - mountPath: /usr/local/bin/yq
-          name: custom-tools
-          subPath: yq
   volumes:
     - name: argocd-cmp-cm
       configMap:
@@ -77,7 +79,14 @@ repoServer:
       emptyDir: {}
 
 applicationSet:
-  replicaCount: 1
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  metrics:
+    enabled: true
 
 notifications:
   enabled: false
@@ -118,10 +127,15 @@ configs:
   cmp:
     create: true
     plugins:
-      sops:
+      tanka-sops:
         init:
-          command: ["/bin/sh", "-c"]
-          args: ["if [ -f 'secrets.enc' ]; then sops -d --input-type json --output-type json secrets.enc > secrets.json; fi"]
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              jb -q install
+              shopt -s nullglob; for secret in *.enc; do sops -d --output-type json --input-type json --output $${secret%enc}json $secret; done
         generate:
-          command: ["/bin/sh", "-c"]
-          args: ["jsonnet main.jsonnet | yq -p json -o yaml >> item.yaml && cat item.yaml"]
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              tk show main.jsonnet --dangerous-allow-redirect
