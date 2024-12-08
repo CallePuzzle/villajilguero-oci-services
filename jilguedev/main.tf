@@ -44,8 +44,8 @@ locals {
 }
 
 module "oci-k0s" {
-  #source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.0.0"
-  source = "../../terraform-module-k0s-oci/"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.0.1"
+  #source = "../../terraform-module-k0s-oci/"
 
   compartment_id = data.sops_file.credentials.data["tenancy_ocid"]
   #source_ocid     = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
@@ -54,12 +54,16 @@ module "oci-k0s" {
 
   argocd_host = local.argocd_host
 
-  manifests_source = {
-    repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
-    target_revision = "main"
-    path            = "jilgue-manifests"
-    plugin          = "sops"
-  }
+  projects = [{
+    name = "svelte-template"
+    source = {
+      repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
+      target_revision = "main"
+      path            = "svelte-template"
+      plugin          = "tanka-sops"
+    }
+    destination_namespace = "svelte-template"
+  }]
 
   argocd_values = templatefile("${path.root}/argocd-values.yaml.tmpl", {
     argocd_host          = local.argocd_host
