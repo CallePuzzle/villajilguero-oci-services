@@ -9,27 +9,46 @@ terraform {
   required_providers {
     sops = {
       source  = "carlpett/sops"
-      version = "1.0.0"
+      version = "1.1.1"
     }
     b2 = {
       source  = "Backblaze/b2"
-      version = "0.8.4"
+      version = "0.9.0"
+    }
+    oci = {
+      source  = "oracle/oci"
+      version = "6.18.0"
     }
   }
 }
 
-provider "oci" {}
+provider "oci" {
+  tenancy_ocid = data.sops_file.credentials.data["tenancy_ocid"]
+  user_ocid    = data.sops_file.credentials.data["user_ocid"]
+  fingerprint  = data.sops_file.credentials.data["fingerprint"]
+  private_key  = data.sops_file.credentials.data["private_key"]
+  region       = "eu-marseille-1"
+}
 
-provider "sops" {}
+provider "b2" {
+  application_key    = data.sops_file.credentials.data["b2_application_key"]
+  application_key_id = data.sops_file.credentials.data["b2_application_key_id"]
+}
 
 data "sops_file" "argo" {
   source_file = "secrets.enc.yaml"
 }
 
+data "sops_file" "credentials" {
+  source_file = "credentials.enc.json"
+  input_type  = "json"
+}
+
 module "oci-k0s" {
   source = "../../terraform-module-k0s-oci/"
 
-  compartment_id  = "ocid1.tenancy.oc1..aaaaaaaa5ii3uidynoqhjub5ub66fm3ryn2my6txw6xrguihckyr2uyarlkq"
+  compartment_id  = data.sops_file.credentials.data["tenancy_ocid"]
+  source_ocid     = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
   k0s_config_path = "${path.root}/k0sctl.yaml"
   k0s_version     = "1.27.9+k0s.0"
 

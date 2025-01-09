@@ -1,0 +1,141 @@
+redis-ha:
+  enabled: false
+
+redis:
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  metrics:
+    enabled: true
+
+controller:
+  replicas: 1
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  metrics:
+    enabled: true
+
+server:
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 50m
+      memory: 256Mi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hostname: ${argocd_host}
+
+repoServer:
+  replicas: 1
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  extraContainers:
+    - name: tanka-sops
+      command:
+        - "/var/run/argocd/argocd-cmp-server"
+      image: ghcr.io/callepuzzle/docker-image-tanka-sops:v1.0.0
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: SOPS_AGE_KEY
+          value: ${sops_age_key}
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        # Remove this volumeMount if you've chosen to bake the config file into the sidecar image.
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: tanka-sops.yaml
+          name: argocd-cmp-cm
+        # Starting with v2.4, do NOT mount the same tmp volume as the repo-server container. The filesystem separation helps
+        # mitigate path traversal attacks.
+        - mountPath: /tmp
+          name: cmp-tmp
+  volumes:
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: custom-tools
+      emptyDir: {}
+
+applicationSet:
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  metrics:
+    enabled: true
+
+notifications:
+  enabled: false
+
+configs:
+  params:
+     server.insecure: true
+  cm:
+    url: https://${argocd_host}
+    admin.enabled: false
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: ${github_client_id}
+            clientSecret: ${github_client_secret}
+            redirectURI: "https://argocd-martaneta.callepuzzle.com/api/dex/callback"
+            orgs:
+            - name: CallePuzzle
+  rbac:
+    policy.default: "role:readonly"
+    policy.csv: |
+      p, role:org-admin, applications, *, */*, allow
+      p, role:org-admin, clusters, get, *, allow
+      p, role:org-admin, repositories, get, *, allow
+      p, role:org-admin, repositories, create, *, allow
+      p, role:org-admin, repositories, update, *, allow
+      p, role:org-admin, repositories, delete, *, allow
+      p, role:org-admin, projects, get, *, allow
+      p, role:org-admin, projects, create, *, allow
+      p, role:org-admin, projects, update, *, allow
+      p, role:org-admin, projects, delete, *, allow
+      p, role:org-admin, logs, get, *, allow
+      p, role:org-admin, exec, create, */*, allow
+      g, CallePuzzle, role:org-admin
+  cmp:
+    create: true
+    plugins:
+      tanka-sops:
+        init:
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              jb -q install
+              shopt -s nullglob; for secret in *.enc; do sops -d --output-type json --input-type json --output $${secret%enc}json $secret; done
+        generate:
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              tk show main.jsonnet --dangerous-allow-redirect
