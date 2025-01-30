@@ -170,4 +170,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(cert_manager) + cert_manager_issuer + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(cert_manager) + std.objectValues(cert_manager_issuer) + std.objectValues(this) + std.objectValues(secrets)
