@@ -23,6 +23,7 @@ local ingressTLS = k.networking.v1.ingressTLS;
            ingress.metadata.withNamespace($.params.namespace) +
            ingress.metadata.withAnnotations({
              'nginx.ingress.kubernetes.io/proxy-body-size': '512m',
+             'cert-manager.io/issuer': 'letsencrypt-prod',
            }) +
            ingress.spec.withRules([rule]) +
            ingress.spec.withIngressClassName($.params.ingress_class_name) +
