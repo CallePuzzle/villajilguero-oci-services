@@ -117,28 +117,30 @@ local cert_manager = {
 };
 
 local cert_manager_issuer = {
-  apiVersion: 'cert-manager.io/v1',
-  kind: 'Issuer',
-  metadata: {
-    name: 'letsencrypt-prod',
-    namespace: 'cert-manager',
-  },
-  spec: {
-    acme: {
-      server: 'https://acme-v02.api.letsencrypt.org/directory',
-      email: 'user@example.com',
-      privateKeySecretRef: {
-        name: 'letsencrypt-prod',
-      },
-      solvers: [
-        {
-          http01: {
-            ingress: {
-              ingressClassName: 'nginx',
+  cert_manager_issuer: {
+    apiVersion: 'cert-manager.io/v1',
+    kind: 'Issuer',
+    metadata: {
+      name: 'letsencrypt-prod',
+      namespace: 'cert-manager',
+    },
+    spec: {
+      acme: {
+        server: 'https://acme-v02.api.letsencrypt.org/directory',
+        email: 'user@example.com',
+        privateKeySecretRef: {
+          name: 'letsencrypt-prod',
+        },
+        solvers: [
+          {
+            http01: {
+              ingress: {
+                ingressClassName: 'nginx',
+              },
             },
           },
-        },
-      ],
+        ],
+      },
     },
   },
 };
