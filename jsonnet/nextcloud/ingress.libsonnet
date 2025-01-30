@@ -1,6 +1,7 @@
 local k = import '../vendor/1.28/main.libsonnet';
 
 local ingress = k.networking.v1.ingress;
+local ingressTLS = k.networking.v1.ingressTLS;
 
 {
   params:: {
@@ -24,5 +25,6 @@ local ingress = k.networking.v1.ingress;
              'nginx.ingress.kubernetes.io/proxy-body-size': '512m',
            }) +
            ingress.spec.withRules([rule]) +
-           ingress.spec.withIngressClassName($.params.ingress_class_name),
+           ingress.spec.withIngressClassName($.params.ingress_class_name) +
+           ingress.spec.withTLS(ingressTLS.withHosts([$._config.host]) + ingressTLS.withSecretName($.params.name + '-tls')),
 }
