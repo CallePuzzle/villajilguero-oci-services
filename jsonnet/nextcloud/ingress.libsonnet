@@ -26,5 +26,5 @@ local ingressTLS = k.networking.v1.ingressTLS;
            }) +
            ingress.spec.withRules([rule]) +
            ingress.spec.withIngressClassName($.params.ingress_class_name) +
-           ingress.spec.withTLS(ingressTLS.withHosts([$._config.host]) + ingressTLS.withSecretName($.params.name + '-tls')),
+           ingress.spec.withTls(ingressTLS.withHosts([$.params.host]) + ingressTLS.withSecretName($.params.name + '-tls')),
 }
