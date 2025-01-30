@@ -1,7 +1,6 @@
 local k = import '../vendor/1.28/main.libsonnet';
 
 local ingress = k.networking.v1.ingress;
-local ingressTLS = k.networking.v1.ingressTLS;
 
 {
   params:: {
@@ -23,11 +22,7 @@ local ingressTLS = k.networking.v1.ingressTLS;
            ingress.metadata.withNamespace($.params.namespace) +
            ingress.metadata.withAnnotations({
              'nginx.ingress.kubernetes.io/proxy-body-size': '512m',
-             'cert-manager.io/issuer': 'letsencrypt-prod',
-             'cert-manager.io/issue-temporary-certificate': 'true',
-             'acme.cert-manager.io/http01-edit-in-place': 'true',
            }) +
            ingress.spec.withRules([rule]) +
-           ingress.spec.withIngressClassName($.params.ingress_class_name) +
-           ingress.spec.withTls(ingressTLS.withHosts([$.params.host]) + ingressTLS.withSecretName($.params.name + '-tls')),
+           ingress.spec.withIngressClassName($.params.ingress_class_name),
 }

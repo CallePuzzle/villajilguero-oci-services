@@ -97,54 +97,6 @@ local metrics_server = {
   metrics_server: import '../jsonnet/metrics-server.libsonnet',
 };
 
-local cert_manager = {
-  cert_manager: (import '../jsonnet/cert-manager.libsonnet') + {
-    cert_manager+: {
-      values: |||
-        crds:
-          enabled: true
-        resources:
-          requests:
-            cpu: 10m
-            memory: 32Mi
-          limits:
-            memory: 64Mi
-        prometheus:
-          enabled: false
-      |||,
-    },
-  },
-};
-
-local cert_manager_issuer = {
-  cert_manager_issuer: {
-    apiVersion: 'cert-manager.io/v1',
-    kind: 'Issuer',
-    metadata: {
-      name: 'letsencrypt-prod',
-      namespace: 'cert-manager',
-    },
-    spec: {
-      acme: {
-        server: 'https://acme-v02.api.letsencrypt.org/directory',
-        email: 'dev@callepuzzle.com',
-        privateKeySecretRef: {
-          name: 'letsencrypt-prod',
-        },
-        solvers: [
-          {
-            http01: {
-              ingress: {
-                ingressClassName: 'nginx',
-              },
-            },
-          },
-        ],
-      },
-    },
-  },
-};
-
 local k = import '../jsonnet/vendor/1.28/main.libsonnet';
 
 local secret = k.core.v1.secret;
@@ -170,4 +122,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(cert_manager) + std.objectValues(cert_manager_issuer) + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(this) + std.objectValues(secrets)
