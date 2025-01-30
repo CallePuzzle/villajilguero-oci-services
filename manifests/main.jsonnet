@@ -116,6 +116,33 @@ local cert_manager = {
   },
 };
 
+local cert_manager_issuer = {
+  apiVersion: 'cert-manager.io/v1',
+  kind: 'Issuer',
+  metadata: {
+    name: 'letsencrypt-prod',
+    namespace: 'cert-manager',
+  },
+  spec: {
+    acme: {
+      server: 'https://acme-v02.api.letsencrypt.org/directory',
+      email: 'user@example.com',
+      privateKeySecretRef: {
+        name: 'letsencrypt-prod',
+      },
+      solvers: [
+        {
+          http01: {
+            ingress: {
+              ingressClassName: 'nginx',
+            },
+          },
+        },
+      ],
+    },
+  },
+};
+
 local k = import '../jsonnet/vendor/1.28/main.libsonnet';
 
 local secret = k.core.v1.secret;
@@ -141,4 +168,4 @@ local secrets = {
   }) + secret.metadata.withNamespace(namespace),
 };
 
-std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(cert_manager) + std.objectValues(this) + std.objectValues(secrets)
+std.objectValues(mariadb_operator) + std.objectValues(dragonfly_operator) + std.objectValues(grafana_monitoring) + std.objectValues(metrics_server) + std.objectValues(cert_manager) + cert_manager_issuer + std.objectValues(this) + std.objectValues(secrets)

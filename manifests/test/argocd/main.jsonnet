@@ -3,25 +3,25 @@ local enc_secrets = import 'secrets.json';
 local namespace = 'default';
 
 local this = (import '../../../jsonnet/main.libsonnet') + {
-    params+: {
-        namespace: namespace,
-        database+: {
-            user_name: enc_secrets.nextcloud_mariadb.user,
-            database_name: enc_secrets.nextcloud_mariadb.database,
-        },
-        nextcloud+: {
-          redis_host: 'dragonfly-sample',
-          enable_notify_push: false,
-        }
-    }
+  params+: {
+    namespace: namespace,
+    database+: {
+      user_name: enc_secrets.nextcloud_mariadb.user,
+      database_name: enc_secrets.nextcloud_mariadb.database,
+    },
+    nextcloud+: {
+      redis_host: 'dragonfly-sample',
+      enable_notify_push: false,
+    },
+  },
 };
 
 local mariadb_operator = {
-    mariadb_operator: import '../../../jsonnet/mariadb-operator.libsonnet'
+  mariadb_operator: import '../../../jsonnet/mariadb-operator.libsonnet',
 };
 
 local dragonfly_operator = {
-    dragonfly_operator: import '../../../jsonnet/dragonfly-operator.libsonnet'
+  dragonfly_operator: import '../../../jsonnet/dragonfly-operator.libsonnet',
 };
 
 local k = import '../../../jsonnet/vendor/1.28/main.libsonnet';
