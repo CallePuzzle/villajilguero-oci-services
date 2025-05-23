@@ -50,7 +50,7 @@ module "oci-k0s" {
   compartment_id  = data.sops_file.credentials.data["tenancy_ocid"]
   source_ocid     = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
   k0s_config_path = "${path.root}/k0sctl.yaml"
-  k0s_version     = "1.27.9+k0s.0"
+  k0s_version     = "v1.28.9+k0s.0"
 
   argocd_host = "argocd.callepuzzle.com"
 
@@ -60,6 +60,8 @@ module "oci-k0s" {
     path            = "manifests"
     plugin          = "sops"
   }
+
+  instance_source_ocid = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
 
   argocd_values = templatefile("${path.root}/argocd-values.yaml.tmpl", {
     argocd_host          = "argocd.callepuzzle.com"
