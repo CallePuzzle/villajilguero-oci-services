@@ -15,7 +15,7 @@ local this = (import '../jsonnet/main.libsonnet') + {
       database_name: enc_secrets.nextcloud_mariadb.database,
     },
     nextcloud+: {
-      version: '31.0.11',
+      version: '31.0.12',
       host: 'casa.callepuzzle.com',
       storage_class_name: 'openebs-hostpath',
       redis_host: 'redis-dragonfly',
