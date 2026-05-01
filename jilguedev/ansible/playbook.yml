@@ -1,0 +1,6 @@
+---
+- name: Configurar instancia OCI con Podman y Nextcloud AIO
+  hosts: podman_servers
+  become: yes
+  roles:
+    - nextcloud_aio

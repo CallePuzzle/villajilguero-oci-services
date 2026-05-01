@@ -1,0 +1,5 @@
+---
+podman_user: ubuntu
+podman_uid: 1000
+nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
+nextcloud_aio_compose_file: docker-compose.yml
