@@ -1,6 +1,5 @@
 ---
-- name: Configurar instancia OCI con Podman y Nextcloud AIO
-  hosts: podman_servers
-  become: yes
+- name: Configure OCI instance with rootless Docker and Nextcloud AIO
+  hosts: docker_servers
   roles:
     - nextcloud_aio

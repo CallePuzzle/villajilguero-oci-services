@@ -49,16 +49,15 @@ resource "local_file" "ansible_inventory" {
   content = <<-EOT
 all:
   children:
-    podman_servers:
+    docker_servers:
       hosts:
         ${module.oci-k0s.public_ip}:
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-          podman_user: ubuntu
-          podman_uid: 1000
+          docker_user: ubuntu
   EOT
 
-  filename = "${path.module}/ansible/inventory/oci_podman.yml"
+  filename = "${path.module}/ansible/inventory/oci_docker.yml"
 }
 
 output "public_ip" {

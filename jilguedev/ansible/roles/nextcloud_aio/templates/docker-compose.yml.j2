@@ -7,14 +7,19 @@ services:
     container_name: nextcloud-aio-mastercontainer
     volumes:
       - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
-      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
+      - {{ docker_socket_path }}:/var/run/docker.sock:ro
     network_mode: bridge
     ports:
-      - "80:80"
+#      - "80:80"
+#  sudo sysctl net.ipv4.ip_unprivileged_port_start=80
+#  To make it persistent across reboots:
+#  echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee /etc/sysctl.d/99-unprivileged-ports.conf
+#  sudo sysctl --system
+#  Then restart the service:
+#  systemctl --user restart docker-compose-nextcloud
       - "8080:8080"
     environment:
       SKIP_DOMAIN_VALIDATION: true
-      WATCHTOWER_DOCKER_SOCKET_PATH: /run/user/1000/podman/podman.sock
 
 volumes:
   nextcloud_aio_mastercontainer:

@@ -28,6 +28,8 @@ This is a Kubernetes infrastructure-as-code project that deploys and manages a N
 | Helm | Package management | 3.x |
 | Oracle Cloud | Cloud provider | OCI |
 | Backblaze B2 | S3-compatible object storage | - |
+| Poetry | Python dependency management & virtualenv | 2.3.4+ |
+| Ansible | Server configuration & provisioning | 13.6.0+ |
 
 ## Project Structure
 
@@ -128,6 +130,27 @@ terraform apply
 kubectl -n argocd get secret argocd-initial-admin-secret \
   --template={{.data.password}} | base64 -d
 ```
+
+### Ansible (Development Environment)
+
+The `jilguedev/ansible` directory uses Poetry to manage a dedicated Python virtualenv with Ansible.
+
+```bash
+cd jilguedev/ansible
+
+# Install dependencies (creates virtualenv automatically)
+poetry install
+
+# Run Ansible commands inside the virtualenv
+poetry run ansible --version
+poetry run ansible-playbook -i inventory/oci_podman.yml playbook.yml
+
+# Or spawn a shell with the virtualenv activated
+poetry shell
+ansible-playbook -i inventory/oci_podman.yml playbook.yml
+```
+
+**Note**: Do not commit the virtualenv directory. `pyproject.toml` and `poetry.lock` should be committed to ensure reproducible builds.
 
 ## Code Organization
 

@@ -1,9 +1,8 @@
 all:
   children:
-    podman_servers:
+    docker_servers:
       hosts:
-        141.253.196.100:
+        158.179.212.251:
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-          podman_user: ubuntu
-          podman_uid: 1000
+          docker_user: ubuntu

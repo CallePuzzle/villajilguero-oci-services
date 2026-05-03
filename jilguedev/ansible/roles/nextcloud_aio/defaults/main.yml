@@ -1,6 +1,4 @@
 ---
 nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
 nextcloud_aio_compose_file: docker-compose.yml
-podman_user: ubuntu
-podman_uid: 1000
-podman_socket_path: /run/user/1000/podman/podman.sock
+docker_user: ubuntu
