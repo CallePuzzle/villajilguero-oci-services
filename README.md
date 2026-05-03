@@ -12,3 +12,6 @@ docker run \
   --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
   --volume /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro \
   ghcr.io/nextcloud-releases/all-in-one:latest
+
+
+338e36ccf007:~/docker-aio# grep password /mnt/docker-aio-config/data/configuration.json

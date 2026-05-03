@@ -17,28 +17,28 @@
       - gnupg
     state: present
     update_cache: yes
-  become: yes
+  become: true
 
 - name: Create keyrings directory
   ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
     mode: "0755"
-  become: yes
+  become: true
 
 - name: Add official Docker GPG key
   ansible.builtin.shell: |
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
   args:
     creates: /etc/apt/keyrings/docker.gpg
-  become: yes
+  become: true
 
 - name: Add Docker repository
   ansible.builtin.shell: |
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
   args:
     creates: /etc/apt/sources.list.d/docker.list
-  become: yes
+  become: true
 
 - name: Install Docker CE and plugins
   ansible.builtin.apt:
@@ -53,7 +53,7 @@
       - uidmap
     state: present
     update_cache: yes
-  become: yes
+  become: true
 
 - name: Configure sysctl for rootless Docker
   ansible.builtin.sysctl:
@@ -65,12 +65,12 @@
   loop:
     - { name: "kernel.unprivileged_userns_clone", value: "1" }
     - { name: "net.ipv4.ip_unprivileged_port_start", value: "0" }
-  become: yes
+  become: true
 
 - name: Enable linger for user
   ansible.builtin.command: loginctl enable-linger {{ docker_user }}
   changed_when: true
-  become: yes
+  become: true
 
 - name: Initialize rootless Docker
   ansible.builtin.command: dockerd-rootless-setuptool.sh install
@@ -79,7 +79,7 @@
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
     PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
-  become: yes
+  become: true
   become_user: "{{ docker_user }}"
 
 - name: Create Nextcloud AIO project directory
@@ -118,7 +118,7 @@
   ansible.builtin.systemd:
     daemon_reload: yes
     scope: user
-  become: yes
+  become: true
   become_user: "{{ docker_user }}"
 
 - name: Start and enable docker-compose-nextcloud service
@@ -127,7 +127,7 @@
     state: started
     enabled: yes
     scope: user
-  become: yes
+  become: true
   become_user: "{{ docker_user }}"
 
 - name: Wait for AIO interface to be available
@@ -142,6 +142,6 @@
   until: result.status is defined
   retries: 30
   delay: 10
-  ignore_errors: yes
-  become: yes
+  ignore_errors: true
+  become: true
   become_user: "{{ docker_user }}"
