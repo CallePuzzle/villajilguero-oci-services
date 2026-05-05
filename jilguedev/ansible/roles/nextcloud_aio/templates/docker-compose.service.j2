@@ -1,9 +1,9 @@
 [Unit]
 Description=Docker Compose - Nextcloud AIO
 Documentation=https://docs.docker.com/engine/security/rootless/
-Wants=docker.socket
-After=docker.socket
-Requires=docker.socket
+Wants=docker.service
+After=docker.service
+Requires=docker.service
 
 [Service]
 Type=oneshot

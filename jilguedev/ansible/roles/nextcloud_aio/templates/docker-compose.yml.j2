@@ -8,19 +8,39 @@ services:
     volumes:
       - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
       - {{ docker_socket_path }}:/var/run/docker.sock:ro
-    network_mode: bridge
+    networks:
+      - nextcloud-aio
     ports:
-#      - "80:80"
-#  sudo sysctl net.ipv4.ip_unprivileged_port_start=80
-#  To make it persistent across reboots:
-#  echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee /etc/sysctl.d/99-unprivileged-ports.conf
-#  sudo sysctl --system
-#  Then restart the service:
-#  systemctl --user restart docker-compose-nextcloud
       - "8080:8080"
     environment:
+      APACHE_PORT: 11000
+      APACHE_IP_BINDING: 0.0.0.0
       SKIP_DOMAIN_VALIDATION: true
+      WATCHTOWER_DOCKER_SOCKET_PATH: {{ docker_socket_path }}
+
+  caddy:
+    image: caddy:alpine
+    restart: always
+    container_name: caddy
+    volumes:
+      - {{ nextcloud_aio_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_config:/config
+      - caddy_data:/data
+    networks:
+      - nextcloud-aio
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
 
 volumes:
   nextcloud_aio_mastercontainer:
     name: nextcloud_aio_mastercontainer
+  caddy_config:
+    name: caddy_config
+  caddy_data:
+    name: caddy_data
+
+networks:
+  nextcloud-aio:
+    name: nextcloud-aio

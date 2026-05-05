@@ -13,7 +13,7 @@ terraform {
     }
     oci = {
       source  = "oracle/oci"
-      version = "6.18.0"
+      version = "8.12.0"
     }
     local = {
       source  = "hashicorp/local"

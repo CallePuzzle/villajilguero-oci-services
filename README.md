@@ -15,3 +15,6 @@ docker run \
 
 
 338e36ccf007:~/docker-aio# grep password /mnt/docker-aio-config/data/configuration.json
+
+journalctl --user -u docker-compose-nextcloud
+systemctl --user -u docker-compose-nextcloud
