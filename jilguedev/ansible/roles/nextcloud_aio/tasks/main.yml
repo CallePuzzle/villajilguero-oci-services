@@ -79,8 +79,6 @@
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
     PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
-  become: true
-  become_user: "{{ docker_user }}"
 
 - name: Create Nextcloud AIO project directory
   ansible.builtin.file:
@@ -126,8 +124,6 @@
   ansible.builtin.systemd:
     daemon_reload: yes
     scope: user
-  become: true
-  become_user: "{{ docker_user }}"
 
 - name: Start and enable docker-compose-nextcloud service
   ansible.builtin.systemd:
@@ -135,8 +131,7 @@
     state: started
     enabled: yes
     scope: user
-  become: true
-  become_user: "{{ docker_user }}"
+
 
 - name: Wait for AIO interface to be available
   ansible.builtin.uri:
@@ -151,5 +146,3 @@
   retries: 30
   delay: 10
   ignore_errors: true
-  become: true
-  become_user: "{{ docker_user }}"
