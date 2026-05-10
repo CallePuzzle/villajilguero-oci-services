@@ -17,4 +17,8 @@ docker run \
 338e36ccf007:~/docker-aio# grep password /mnt/docker-aio-config/data/configuration.json
 
 journalctl --user -u docker-compose-nextcloud
-systemctl --user -u docker-compose-nextcloud
+systemctl status --user docker-compose-nextcloud
+
+
+mocker purgatory scam crisply perfectly polymer reimburse drown
+backup: a4ede93715731cca809b5e5d20d1c33a124d1ace4f53bdff
