@@ -71,6 +71,8 @@ This is a Kubernetes infrastructure-as-code project that deploys and manages a N
 - `jilguedev/`: Development workspace "jilguedev" (eu-madrid-1 region)
 - `test/`: Local integration testing (Kind cluster)
 
+The `terraform-module-k0s-oci` module supports `additional_security_list_rules` to inject custom ingress rules into the VCN Default Security List. `jilguedev/` uses this to expose HTTP/HTTPS publicly for the Caddy reverse proxy.
+
 ### Secrets Management
 All secrets are encrypted using SOPS with age keys:
 - `*.enc.yaml` - YAML encrypted secrets
@@ -143,14 +145,16 @@ poetry install
 
 # Run Ansible commands inside the virtualenv
 poetry run ansible --version
-poetry run ansible-playbook -i inventory/oci_podman.yml playbook.yml
+poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 
 # Or spawn a shell with the virtualenv activated
 poetry shell
-ansible-playbook -i inventory/oci_podman.yml playbook.yml
+ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ```
 
 **Note**: Do not commit the virtualenv directory. `pyproject.toml` and `poetry.lock` should be committed to ensure reproducible builds.
+
+**Nextcloud AIO deployment**: The `nextcloud_aio` role deploys Nextcloud All-in-One with Caddy as reverse proxy, Docker rootless, automated backups, and OS hardening (UFW, fail2ban, unattended-upgrades). See `jilguedev/AGENTS.md` for detailed operational docs.
 
 ## Code Organization
 

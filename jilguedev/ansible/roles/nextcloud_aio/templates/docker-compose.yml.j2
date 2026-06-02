@@ -5,33 +5,56 @@ services:
     init: true
     restart: always
     container_name: nextcloud-aio-mastercontainer
+    network_mode: bridge
     volumes:
       - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
       - {{ docker_socket_path }}:/var/run/docker.sock:ro
-    networks:
-      - nextcloud-aio
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
-      APACHE_PORT: 11000
-      APACHE_IP_BINDING: 0.0.0.0
-      SKIP_DOMAIN_VALIDATION: true
+      APACHE_PORT: {{ nextcloud_aio_apache_port }}
+      APACHE_IP_BINDING: {{ nextcloud_aio_apache_ip_binding }}
+      SKIP_DOMAIN_VALIDATION: {{ nextcloud_aio_skip_domain_validation | lower }}
       WATCHTOWER_DOCKER_SOCKET_PATH: {{ docker_socket_path }}
+      AIO_LOG_LEVEL: {{ nextcloud_aio_log_level }}
+      NEXTCLOUD_TRUSTED_PROXIES: 127.0.0.1
+      BORG_RETENTION_POLICY: "{{ nextcloud_aio_borg_retention_policy }}"
+      NEXTCLOUD_MEMORY_LIMIT: {{ nextcloud_aio_memory_limit }}
+      NEXTCLOUD_UPLOAD_LIMIT: {{ nextcloud_aio_upload_limit }}
+      NEXTCLOUD_MAX_TIME: {{ nextcloud_aio_max_time }}
+{% if nextcloud_aio_datadir | length > 0 %}
+      NEXTCLOUD_DATADIR: {{ nextcloud_aio_datadir }}
+{% endif %}
+    logging:
+      driver: "local"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsSL", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   caddy:
     image: caddy:alpine
     restart: always
     container_name: caddy
+    network_mode: host
     volumes:
       - {{ nextcloud_aio_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_config:/config
       - caddy_data:/data
-    networks:
-      - nextcloud-aio
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+    logging:
+      driver: "local"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   nextcloud_aio_mastercontainer:
@@ -40,7 +63,3 @@ volumes:
     name: caddy_config
   caddy_data:
     name: caddy_data
-
-networks:
-  nextcloud-aio:
-    name: nextcloud-aio

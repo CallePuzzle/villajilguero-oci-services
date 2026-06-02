@@ -80,6 +80,133 @@
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
     PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
 
+- name: Configure Docker daemon.json for local log driver
+  ansible.builtin.copy:
+    dest: "/home/{{ docker_user }}/.config/docker/daemon.json"
+    content: |
+      {
+        "log-driver": "local",
+        "live-restore": false
+      }
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0644"
+  register: docker_daemon_json
+
+- name: Ensure rootless Docker user service is enabled
+  ansible.builtin.systemd:
+    name: docker
+    enabled: yes
+    scope: user
+
+- name: Restart rootless Docker to apply daemon.json changes
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+    scope: user
+  when: docker_daemon_json.changed | bool
+
+- name: Hardening - install and configure UFW
+  when: nextcloud_aio_enable_ufw | bool
+  block:
+    - name: Install UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: yes
+      become: true
+
+    - name: Allow SSH through UFW
+      community.general.ufw:
+        rule: allow
+        port: 22
+        proto: tcp
+      become: true
+
+    - name: Allow HTTP through UFW
+      community.general.ufw:
+        rule: allow
+        port: 80
+        proto: tcp
+      become: true
+
+    - name: Allow HTTPS through UFW
+      community.general.ufw:
+        rule: allow
+        port: 443
+        proto: tcp
+      become: true
+
+    - name: Deny AIO admin port 8080 from public
+      community.general.ufw:
+        rule: deny
+        port: 8080
+        proto: tcp
+      become: true
+
+    - name: Enable UFW with default deny policy
+      community.general.ufw:
+        state: enabled
+        policy: deny
+      become: true
+
+- name: Hardening - install and configure fail2ban
+  when: nextcloud_aio_enable_fail2ban | bool
+  block:
+    - name: Install fail2ban
+      ansible.builtin.apt:
+        name: fail2ban
+        state: present
+        update_cache: yes
+      become: true
+
+    - name: Configure fail2ban jail for SSH
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [DEFAULT]
+          bantime = 3600
+          findtime = 600
+          maxretry = 5
+
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          backend = systemd
+        mode: "0644"
+      become: true
+
+    - name: Restart and enable fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: restarted
+        enabled: yes
+      become: true
+
+- name: Hardening - install and configure unattended-upgrades
+  when: nextcloud_aio_enable_unattended_upgrades | bool
+  block:
+    - name: Install unattended-upgrades
+      ansible.builtin.apt:
+        name:
+          - unattended-upgrades
+          - apt-listchanges
+        state: present
+        update_cache: yes
+      become: true
+
+    - name: Enable automatic security updates
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Download-Upgradeable-Packages "1";
+          APT::Periodic::AutocleanInterval "7";
+          APT::Periodic::Unattended-Upgrade "1";
+        mode: "0644"
+      become: true
+
 - name: Create Nextcloud AIO project directory
   ansible.builtin.file:
     path: "{{ nextcloud_aio_compose_path }}"
@@ -132,6 +259,36 @@
     enabled: yes
     scope: user
 
+- name: Create Nextcloud AIO backup systemd service
+  ansible.builtin.template:
+    src: nextcloud-aio-backup.service.j2
+    dest: "/home/{{ docker_user }}/.config/systemd/user/nextcloud-aio-backup.service"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0644"
+  when: nextcloud_aio_backup_enabled | bool
+
+- name: Create Nextcloud AIO backup systemd timer
+  ansible.builtin.template:
+    src: nextcloud-aio-backup.timer.j2
+    dest: "/home/{{ docker_user }}/.config/systemd/user/nextcloud-aio-backup.timer"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0644"
+  when: nextcloud_aio_backup_enabled | bool
+
+- name: Reload user systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+    scope: user
+
+- name: Enable and start backup timer
+  ansible.builtin.systemd:
+    name: nextcloud-aio-backup.timer
+    state: started
+    enabled: yes
+    scope: user
+  when: nextcloud_aio_backup_enabled | bool
 
 - name: Wait for AIO interface to be available
   ansible.builtin.uri:

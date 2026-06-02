@@ -1,0 +1,8 @@
+[Unit]
+Description=Nextcloud AIO Daily Backup and Update
+Documentation=https://github.com/nextcloud/all-in-one#how-to-run-the-backup-script-automatically
+
+[Service]
+Type=oneshot
+Environment=DOCKER_HOST=unix://{{ docker_socket_path }}
+ExecStart=/usr/bin/docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-mastercontainer /daily-backup.sh

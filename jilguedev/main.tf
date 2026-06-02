@@ -43,6 +43,33 @@ module "oci-k0s" {
   enable_k0s = false
 
   ssh_public_key = file("~/.ssh/id_ed25519.pub")
+
+  additional_security_list_rules = [
+    {
+      protocol = "6"
+      source   = "0.0.0.0/0"
+      tcp_options = {
+        min = 80
+        max = 80
+      }
+    },
+    {
+      protocol = "6"
+      source   = "0.0.0.0/0"
+      tcp_options = {
+        min = 443
+        max = 443
+      }
+    },
+    {
+      protocol = "17"
+      source   = "0.0.0.0/0"
+      udp_options = {
+        min = 443
+        max = 443
+      }
+    },
+  ]
 }
 
 resource "local_file" "ansible_inventory" {

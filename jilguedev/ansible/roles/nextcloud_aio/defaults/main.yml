@@ -3,3 +3,32 @@ nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
 nextcloud_aio_compose_file: docker-compose.yml
 docker_user: ubuntu
 nextcloud_aio_domain: aio.callepuzzle.com
+
+# Nextcloud AIO configuration
+nextcloud_aio_apache_port: 11000
+nextcloud_aio_apache_ip_binding: 127.0.0.1
+nextcloud_aio_skip_domain_validation: true
+
+# Data directory (must be set BEFORE first install; changing later causes data loss)
+# Set to empty string "" to use the default Docker volume
+nextcloud_aio_datadir: ""
+
+# PHP / performance limits
+nextcloud_aio_memory_limit: 2048M
+nextcloud_aio_upload_limit: 16G
+nextcloud_aio_max_time: 3600
+
+# Backup retention policy for BorgBackup
+nextcloud_aio_borg_retention_policy: "--keep-within=7d --keep-weekly=4 --keep-monthly=6"
+
+# AIO log level: error, warn, info, debug
+nextcloud_aio_log_level: warn
+
+# OS hardening
+nextcloud_aio_enable_ufw: true
+nextcloud_aio_enable_fail2ban: true
+nextcloud_aio_enable_unattended_upgrades: true
+
+# Automated daily backup + updates via systemd user timer
+nextcloud_aio_backup_enabled: true
+nextcloud_aio_backup_time: "02:00"
