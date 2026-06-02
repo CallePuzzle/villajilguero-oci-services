@@ -1,3 +1,8 @@
+variable "ssh_private_key_path" {
+  description = "Path to the SSH private key used for OCI instance access and Ansible"
+  default     = "~/.ssh/id_ed25519"
+}
+
 terraform {
   cloud {
     organization = "villajilguero"
@@ -42,7 +47,7 @@ module "oci-k0s" {
 
   enable_k0s = false
 
-  ssh_public_key = file("~/.ssh/id_ed25519.pub")
+  ssh_public_key = file("${var.ssh_private_key_path}.pub")
 
   additional_security_list_rules = [
     {
@@ -80,7 +85,7 @@ all:
       hosts:
         ${module.oci-k0s.public_ip}:
           ansible_user: ubuntu
-          ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+          ansible_ssh_private_key_file: ${var.ssh_private_key_path}
           docker_user: ubuntu
   EOT
 

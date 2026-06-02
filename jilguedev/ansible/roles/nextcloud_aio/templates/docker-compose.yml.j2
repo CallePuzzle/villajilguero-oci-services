@@ -17,11 +17,12 @@ services:
       SKIP_DOMAIN_VALIDATION: {{ nextcloud_aio_skip_domain_validation | lower }}
       WATCHTOWER_DOCKER_SOCKET_PATH: {{ docker_socket_path }}
       AIO_LOG_LEVEL: {{ nextcloud_aio_log_level }}
-      NEXTCLOUD_TRUSTED_PROXIES: 127.0.0.1
+      NEXTCLOUD_TRUSTED_PROXIES: "{{ nextcloud_aio_trusted_proxies }}"
       BORG_RETENTION_POLICY: "{{ nextcloud_aio_borg_retention_policy }}"
       NEXTCLOUD_MEMORY_LIMIT: {{ nextcloud_aio_memory_limit }}
       NEXTCLOUD_UPLOAD_LIMIT: {{ nextcloud_aio_upload_limit }}
       NEXTCLOUD_MAX_TIME: {{ nextcloud_aio_max_time }}
+      AIO_DISABLE_BACKUP_SECTION: {{ nextcloud_aio_disable_backup_section | lower }}
 {% if nextcloud_aio_datadir | length > 0 %}
       NEXTCLOUD_DATADIR: {{ nextcloud_aio_datadir }}
 {% endif %}
@@ -32,7 +33,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "curl", "-fsSL", "http://localhost:8080"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 3

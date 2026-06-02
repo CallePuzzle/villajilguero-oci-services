@@ -67,18 +67,32 @@
     - { name: "net.ipv4.ip_unprivileged_port_start", value: "0" }
   become: true
 
+- name: Check if linger is enabled
+  ansible.builtin.stat:
+    path: "/var/lib/systemd/linger/{{ docker_user }}"
+  register: linger_stat
+  changed_when: false
+
 - name: Enable linger for user
   ansible.builtin.command: loginctl enable-linger {{ docker_user }}
-  changed_when: true
+  when: not linger_stat.stat.exists
   become: true
 
 - name: Initialize rootless Docker
   ansible.builtin.command: dockerd-rootless-setuptool.sh install
   args:
-    creates: "/home/{{ docker_user }}/.config/docker/daemon.json"
+    creates: "/home/{{ docker_user }}/.config/systemd/user/docker.service"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
     PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+
+- name: Ensure Docker config directory exists
+  ansible.builtin.file:
+    path: "/home/{{ docker_user }}/.config/docker"
+    state: directory
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0755"
 
 - name: Configure Docker daemon.json for local log driver
   ansible.builtin.copy:
@@ -114,6 +128,11 @@
         name: ufw
         state: present
         update_cache: yes
+      become: true
+
+    - name: Reset UFW to ensure clean rule state
+      community.general.ufw:
+        state: reset
       become: true
 
     - name: Allow SSH through UFW

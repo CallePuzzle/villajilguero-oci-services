@@ -24,6 +24,12 @@ nextcloud_aio_borg_retention_policy: "--keep-within=7d --keep-weekly=4 --keep-mo
 # AIO log level: error, warn, info, debug
 nextcloud_aio_log_level: warn
 
+# Trusted proxies for Nextcloud (e.g. reverse proxy / load balancer IPs)
+nextcloud_aio_trusted_proxies: "127.0.0.1"
+
+# Disable backup section in AIO UI when using automated external backups
+nextcloud_aio_disable_backup_section: true
+
 # OS hardening
 nextcloud_aio_enable_ufw: true
 nextcloud_aio_enable_fail2ban: true
