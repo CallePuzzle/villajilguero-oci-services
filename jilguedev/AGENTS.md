@@ -51,7 +51,6 @@ docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-masterc
 - **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
 - **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
 - **Log driver**: Docker usa `log-driver: local` para evitar crecimiento descontrolado de logs.
-- **Container hardening**: `cap_drop: [ALL]` y `no-new-privileges:true` en el mastercontainer.
 - **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configurado para Caddy en host network.
 
 ### Variables importantes

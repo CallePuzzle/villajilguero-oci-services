@@ -56,7 +56,7 @@ The Ansible role generates a `docker-compose.yml` with two services:
 - Image: `ghcr.io/nextcloud-releases/all-in-one:latest`
 - Exposes `127.0.0.1:8080` for the AIO admin interface
 - Mounts the rootless Docker socket (read-only)
-- Drops all capabilities and sets `no-new-privileges:true`
+- Mounts the rootless Docker socket (read-only)
 - Environment variables control Apache binding, PHP limits, backups, and logging
 
 ### caddy
@@ -110,7 +110,6 @@ AIO includes integrated BorgBackup managed from the AIO admin UI (`https://local
 - **unattended-upgrades**: Automatic OS security updates.
 - **Docker rootless**: Reduces attack surface; containers run without root privileges.
 - **Log driver**: Docker uses `log-driver: local` to prevent uncontrolled log growth.
-- **Container hardening**: `cap_drop: [ALL]` and `no-new-privileges:true` on the mastercontainer.
 - **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configured for Caddy in host network.
 
 ## Docker Daemon
