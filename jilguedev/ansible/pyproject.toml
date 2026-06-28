@@ -5,7 +5,7 @@ description = ""
 authors = [
     {name = "César M. Cristóbal",email = "cesar@callepuzzle.com"}
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "ansible (>=13.6.0,<14.0.0)"
 ]
