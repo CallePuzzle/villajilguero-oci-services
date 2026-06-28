@@ -1,0 +1,4 @@
+---
+docker_user: ubuntu
+nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
+nextcloud_aio_compose_file: docker-compose.yml

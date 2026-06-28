@@ -1,0 +1,5 @@
+---
+- name: Configure OCI instance with rootless Docker and Nextcloud AIO
+  hosts: docker_servers
+  roles:
+    - nextcloud_aio

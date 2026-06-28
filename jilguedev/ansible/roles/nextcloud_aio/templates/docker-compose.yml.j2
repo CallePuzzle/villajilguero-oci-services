@@ -1,0 +1,62 @@
+name: nextcloud-aio
+services:
+  nextcloud-aio-mastercontainer:
+    image: ghcr.io/nextcloud-releases/all-in-one:latest
+    init: true
+    restart: always
+    container_name: nextcloud-aio-mastercontainer
+    network_mode: bridge
+    volumes:
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
+      - {{ docker_socket_path }}:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      APACHE_PORT: {{ nextcloud_aio_apache_port }}
+      APACHE_IP_BINDING: {{ nextcloud_aio_apache_ip_binding }}
+      SKIP_DOMAIN_VALIDATION: {{ nextcloud_aio_skip_domain_validation | lower }}
+      WATCHTOWER_DOCKER_SOCKET_PATH: {{ docker_socket_path }}
+      AIO_LOG_LEVEL: {{ nextcloud_aio_log_level }}
+      NEXTCLOUD_TRUSTED_PROXIES: "{{ nextcloud_aio_trusted_proxies }}"
+      BORG_RETENTION_POLICY: "{{ nextcloud_aio_borg_retention_policy }}"
+      NEXTCLOUD_MEMORY_LIMIT: {{ nextcloud_aio_memory_limit }}
+      NEXTCLOUD_UPLOAD_LIMIT: {{ nextcloud_aio_upload_limit }}
+      NEXTCLOUD_MAX_TIME: {{ nextcloud_aio_max_time }}
+      AIO_DISABLE_BACKUP_SECTION: {{ nextcloud_aio_disable_backup_section | lower }}
+{% if nextcloud_aio_datadir | length > 0 %}
+      NEXTCLOUD_DATADIR: {{ nextcloud_aio_datadir }}
+{% endif %}
+    logging:
+      driver: "local"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  caddy:
+    image: caddy:alpine
+    restart: always
+    container_name: caddy
+    network_mode: host
+    volumes:
+      - {{ nextcloud_aio_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_config:/config
+      - caddy_data:/data
+    logging:
+      driver: "local"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  nextcloud_aio_mastercontainer:
+    name: nextcloud_aio_mastercontainer
+  caddy_config:
+    name: caddy_config
+  caddy_data:
+    name: caddy_data

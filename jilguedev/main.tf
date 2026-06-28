@@ -1,3 +1,8 @@
+variable "ssh_private_key_path" {
+  description = "Path to the SSH private key used for OCI instance access and Ansible"
+  default     = "~/.ssh/id_ed25519"
+}
+
 terraform {
   cloud {
     organization = "villajilguero"
@@ -11,13 +16,13 @@ terraform {
       source  = "carlpett/sops"
       version = "1.1.1"
     }
-    b2 = {
-      source  = "Backblaze/b2"
-      version = "0.9.0"
-    }
     oci = {
       source  = "oracle/oci"
-      version = "6.18.0"
+      version = "8.12.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
     }
   }
 }
@@ -35,44 +40,62 @@ provider "oci" {
   region       = "eu-madrid-1"
 }
 
-data "sops_file" "argo" {
-  source_file = "secrets.enc.yaml"
-}
-
-locals {
-  argocd_host = "argocd-jilgue.callepuzzle.com"
-}
-
 module "oci-k0s" {
-  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.0.1"
-  #source = "../../terraform-module-k0s-oci/"
+  source = "../../terraform-module-k0s-oci/"
 
   compartment_id = data.sops_file.credentials.data["tenancy_ocid"]
-  #source_ocid     = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
-  k0s_config_path = "${path.root}/k0sctl.yaml"
-  k0s_version     = "v1.31.2+k0s.0"
 
-  argocd_host = local.argocd_host
+  enable_k0s = false
 
-  projects = [{
-    name = "svelte-template"
-    source = {
-      repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
-      target_revision = "main"
-      path            = "svelte-template"
-      plugin          = "tanka-sops"
-    }
-    destination_namespace = "svelte-template"
-  }]
+  ssh_public_key = file("${var.ssh_private_key_path}.pub")
 
-  argocd_values = templatefile("${path.root}/argocd-values.yaml.tmpl", {
-    argocd_host          = local.argocd_host
-    github_client_id     = data.sops_file.argo.data["github.clientID"]
-    github_client_secret = data.sops_file.argo.data["github.clientSecret"]
-    sops_age_key         = data.sops_file.argo.data["sops_age_key"]
-  })
+  additional_security_list_rules = [
+    {
+      protocol = "6"
+      source   = "0.0.0.0/0"
+      tcp_options = {
+        min = 80
+        max = 80
+      }
+    },
+    {
+      protocol = "6"
+      source   = "0.0.0.0/0"
+      tcp_options = {
+        min = 443
+        max = 443
+      }
+    },
+    {
+      protocol = "17"
+      source   = "0.0.0.0/0"
+      udp_options = {
+        min = 443
+        max = 443
+      }
+    },
+  ]
+}
+
+resource "local_file" "ansible_inventory" {
+  content = <<-EOT
+all:
+  children:
+    docker_servers:
+      hosts:
+        ${module.oci-k0s.public_ip}:
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ${var.ssh_private_key_path}
+          docker_user: ubuntu
+  EOT
+
+  filename = "${path.module}/ansible/inventory/oci_docker.yml"
 }
 
 output "public_ip" {
   value = module.oci-k0s.public_ip
+}
+
+output "private_ip" {
+  value = module.oci-k0s.private_ip
 }
