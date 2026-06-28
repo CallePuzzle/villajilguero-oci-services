@@ -23,7 +23,7 @@
   ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
-    mode: "0755"
+    mode: "0750"
   become: true
 
 - name: Add official Docker GPG key
@@ -92,7 +92,7 @@
     state: directory
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0755"
+    mode: "0750"
 
 - name: Configure Docker daemon.json for local log driver
   ansible.builtin.copy:
@@ -104,7 +104,7 @@
       }
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
   register: docker_daemon_json
 
 - name: Ensure rootless Docker user service is enabled
@@ -193,7 +193,7 @@
           port = ssh
           filter = sshd
           backend = systemd
-        mode: "0644"
+        mode: "0640"
       become: true
 
     - name: Restart and enable fail2ban
@@ -223,7 +223,7 @@
           APT::Periodic::Download-Upgradeable-Packages "1";
           APT::Periodic::AutocleanInterval "7";
           APT::Periodic::Unattended-Upgrade "1";
-        mode: "0644"
+        mode: "0640"
       become: true
 
 - name: Create Nextcloud AIO project directory
@@ -232,7 +232,7 @@
     state: directory
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0755"
+    mode: "0750"
 
 - name: Copy Caddyfile
   ansible.builtin.template:
@@ -240,7 +240,7 @@
     dest: "{{ nextcloud_aio_compose_path }}/Caddyfile"
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
 
 - name: Copy docker-compose.yml
   ansible.builtin.template:
@@ -248,7 +248,7 @@
     dest: "{{ nextcloud_aio_compose_path }}/{{ nextcloud_aio_compose_file }}"
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
 
 - name: Ensure user systemd directory
   ansible.builtin.file:
@@ -256,7 +256,7 @@
     state: directory
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0755"
+    mode: "0750"
 
 - name: Create systemd service for docker compose
   ansible.builtin.template:
@@ -264,7 +264,7 @@
     dest: "/home/{{ docker_user }}/.config/systemd/user/docker-compose-nextcloud.service"
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
 
 - name: Reload user systemd
   ansible.builtin.systemd:
@@ -284,7 +284,7 @@
     dest: "/home/{{ docker_user }}/.config/systemd/user/nextcloud-aio-backup.service"
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
   when: nextcloud_aio_backup_enabled | bool
 
 - name: Create Nextcloud AIO backup systemd timer
@@ -293,7 +293,7 @@
     dest: "/home/{{ docker_user }}/.config/systemd/user/nextcloud-aio-backup.timer"
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
-    mode: "0644"
+    mode: "0640"
   when: nextcloud_aio_backup_enabled | bool
 
 - name: Reload user systemd daemon
