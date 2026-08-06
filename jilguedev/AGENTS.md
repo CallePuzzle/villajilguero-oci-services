@@ -27,6 +27,8 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ### Backup y restauración
 AIO incluye BorgBackup integrado. Se gestiona desde la UI de AIO (`https://localhost:8080`).
 
+**Backup local**: El rol de Ansible crea por defecto `/home/ubuntu/nextcloud-aio-backups` y lo monta en el mastercontainer. En la UI de AIO se debe configurar ese mismo path como ubicación de backup para que Borg cree el repositorio en `/home/ubuntu/nextcloud-aio-backups/borg`.
+
 **Backup automatizado**: Un systemd user timer ejecuta diariamente a las 02:00:
 ```bash
 systemctl --user status nextcloud-aio-backup.timer
@@ -37,9 +39,33 @@ El script ejecuta:
 docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-mastercontainer /daily-backup.sh
 ```
 
-**Backup remoto**: Desde la UI de AIO se puede configurar un repositorio Borg remoto via SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
+**Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
 
 **Restauración**: Solo se necesita el backup de Borg + la contraseña de encriptación. Se restaura completo desde la UI de AIO.
+
+**Test de verificación del backup de producción (B2)**: Para comprobar que la copia sincronizada desde Backblaze B2 es válida y contiene los datos esperados, hay dos opciones:
+
+1. **Molecule (recomendado)**: ejecuta la verificación dentro de un contenedor Podman desechable:
+
+```bash
+cd jilguedev/ansible/roles/nextcloud_aio
+# Asegúrate de tener el backup en tmp/nextcloud-aio-borg-backup/
+# y la passphrase en .borg.txt (ambos ignorados por git)
+poetry run molecule test --scenario-name b2-restore
+```
+
+2. **Playbook local**: para comprobaciones rápidas sin contenedor:
+
+```bash
+cd jilguedev/ansible
+poetry run ansible-playbook playbooks/verify-b2-backup.yml
+```
+
+Ambos test:
+- Ejecutan `borg check` sobre el repositorio local.
+- Listan los archives disponibles.
+- Extraen el dump SQL de PostgreSQL.
+- Verifican que los usuarios `cesar` y `nuria` existen en `oc_users`.
 
 ### Actualizaciones
 - **Automáticas**: El timer de backup incluye `AUTOMATIC_UPDATES=1`, por lo que AIO se actualiza automáticamente durante el backup diario.
@@ -65,7 +91,9 @@ Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles e
 | `nextcloud_aio_max_time` | Tiempo máx. de ejecución PHP | `3600` |
 | `nextcloud_aio_borg_retention_policy` | Retención de backups Borg | `--keep-within=7d --keep-weekly=4 --keep-monthly=6` |
 | `nextcloud_aio_log_level` | Nivel de log de AIO | `warn` |
-| `nextcloud_aio_backup_enabled` | Habilitar backup timer | `true` |
+| `nextcloud_aio_disable_backup_section` | Ocultar sección de backup en la UI de AIO | `false` |
+| `nextcloud_aio_backup_dir` | Directorio host para backups locales de Borg | `/home/ubuntu/nextcloud-aio-backups` |
+| `nextcloud_aio_backup_enabled` | Habilitar timer de backup diario | `true` |
 | `nextcloud_aio_backup_time` | Hora del backup diario | `02:00` |
 | `nextcloud_aio_enable_ufw` | Habilitar UFW | `true` |
 | `nextcloud_aio_enable_fail2ban` | Habilitar fail2ban | `true` |

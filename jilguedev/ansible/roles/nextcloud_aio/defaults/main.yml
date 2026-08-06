@@ -27,8 +27,11 @@ nextcloud_aio_log_level: warn
 # Trusted proxies for Nextcloud (e.g. reverse proxy / load balancer IPs)
 nextcloud_aio_trusted_proxies: "127.0.0.1"
 
-# Disable backup section in AIO UI when using automated external backups
-nextcloud_aio_disable_backup_section: true
+# Enable the backup section in the AIO UI so a backup destination can be configured
+nextcloud_aio_disable_backup_section: false
+
+# Local directory used as Borg backup target (mounted into the mastercontainer)
+nextcloud_aio_backup_dir: /home/ubuntu/nextcloud-aio-backups
 
 # OS hardening
 nextcloud_aio_enable_ufw: true

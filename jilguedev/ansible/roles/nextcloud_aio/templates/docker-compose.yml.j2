@@ -9,6 +9,9 @@ services:
     volumes:
       - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
       - {{ docker_socket_path }}:/var/run/docker.sock:ro
+{% if nextcloud_aio_backup_dir | length > 0 %}
+      - {{ nextcloud_aio_backup_dir }}:{{ nextcloud_aio_backup_dir }}
+{% endif %}
     ports:
       - "127.0.0.1:8080:8080"
     environment:

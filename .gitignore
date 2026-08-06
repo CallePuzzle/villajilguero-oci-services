@@ -42,8 +42,12 @@ test/secrets.enc
 
 # sops
 .key.txt
+.borg.txt
 
 credentials.json
 
+# Local temporary files and virtualenvs
+.venv*/
+tmp/
 
 jilguedev/ansible/inventory/oci_docker.yml

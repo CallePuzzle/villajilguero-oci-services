@@ -234,6 +234,15 @@
     group: "{{ docker_user }}"
     mode: "0750"
 
+- name: Create local backup directory
+  ansible.builtin.file:
+    path: "{{ nextcloud_aio_backup_dir }}"
+    state: directory
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0750"
+  when: nextcloud_aio_backup_dir | length > 0
+
 - name: Copy Caddyfile
   ansible.builtin.template:
     src: Caddyfile.j2
