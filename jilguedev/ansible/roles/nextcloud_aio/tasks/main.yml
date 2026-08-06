@@ -23,7 +23,9 @@
   ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
-    mode: "0750"
+    # Must stay world-readable/traversable: apt's _apt sandbox user needs to
+    # read the GPG keyring here to verify the Docker repo's InRelease signature.
+    mode: "0755"
   become: true
 
 - name: Add official Docker GPG key
@@ -86,6 +88,13 @@
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
     PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
 
+- name: Install fuse-overlayfs
+  ansible.builtin.apt:
+    name: fuse-overlayfs
+    state: present
+  become: true
+  when: nextcloud_aio_docker_storage_driver == "fuse-overlayfs"
+
 - name: Ensure Docker config directory exists
   ansible.builtin.file:
     path: "/home/{{ docker_user }}/.config/docker"
@@ -100,7 +109,8 @@
     content: |
       {
         "log-driver": "local",
-        "live-restore": false
+        "live-restore": false{% if nextcloud_aio_docker_storage_driver | length > 0 %},
+        "storage-driver": "{{ nextcloud_aio_docker_storage_driver }}"{% endif %}
       }
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
@@ -250,6 +260,7 @@
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
     mode: "0640"
+  register: nextcloud_aio_caddyfile
 
 - name: Copy docker-compose.yml
   ansible.builtin.template:
@@ -258,6 +269,7 @@
     owner: "{{ docker_user }}"
     group: "{{ docker_user }}"
     mode: "0640"
+  register: nextcloud_aio_compose_file
 
 - name: Ensure user systemd directory
   ansible.builtin.file:
@@ -286,6 +298,30 @@
     state: started
     enabled: yes
     scope: user
+
+# The systemd unit above only starts docker-compose-nextcloud if it wasn't
+# running; it won't pick up changes to docker-compose.yml on its own
+# (e.g. nextcloud_aio_mastercontainer_ip_binding or nextcloud_aio_apache_ip_binding
+# changed after the initial install), so re-apply explicitly when it changed.
+- name: Apply docker-compose.yml changes to running containers
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ nextcloud_aio_compose_path }}"
+  environment:
+    DOCKER_HOST: "unix://{{ docker_socket_path }}"
+    PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  when: nextcloud_aio_compose_file.changed
+
+# Caddy only reads its Caddyfile at startup, and it's a bind-mounted file
+# rather than part of the compose service definition, so "docker compose up
+# -d" above won't make it reload on its own.
+- name: Restart Caddy to apply Caddyfile changes
+  ansible.builtin.command:
+    cmd: docker restart caddy
+  environment:
+    DOCKER_HOST: "unix://{{ docker_socket_path }}"
+    PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  when: nextcloud_aio_caddyfile.changed
 
 - name: Create Nextcloud AIO backup systemd service
   ansible.builtin.template:

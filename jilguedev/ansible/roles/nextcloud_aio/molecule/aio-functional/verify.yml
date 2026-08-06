@@ -1,0 +1,26 @@
+---
+- name: Verify the AIO functional test environment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the mastercontainer admin UI is reachable
+      ansible.builtin.uri:
+        url: "https://localhost:8080"
+        status_code:
+          - 200
+          - 301
+          - 302
+        validate_certs: false
+      register: aio_ui
+      until: aio_ui.status is defined
+      retries: 10
+      delay: 10
+
+    - name: Show manual restore instructions
+      ansible.builtin.debug:
+        msg:
+          - "Nextcloud AIO esta arriba en el contenedor de prueba."
+          - "Abre en el navegador: https://localhost:{{ container_published_port }} (certificado autofirmado, acepta el aviso)."
+          - "En la pantalla de bienvenida de AIO, ve a la seccion de backup/restore e indica esta ruta como ubicacion del backup: {{ backup_dir_path }}"
+          - "La passphrase de Borg esta dentro del contenedor en {{ passphrase_file_path }} (o en .borg.txt en la raiz del repo)."
+          - "Cuando termines de comprobar el restore, ejecuta: poetry run molecule destroy --scenario-name aio-functional"

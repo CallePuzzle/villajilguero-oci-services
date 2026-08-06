@@ -1,0 +1,12 @@
+---
+- name: Destroy container instance
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Remove test container
+      containers.podman.podman_container:
+        name: "{{ hostvars[item].ansible_host }}"
+        executable: "{{ playbook_dir }}/files/sudo-podman"
+        state: absent
+      loop: "{{ groups['all'] }}"
+      failed_when: false

@@ -13,7 +13,7 @@ services:
       - {{ nextcloud_aio_backup_dir }}:{{ nextcloud_aio_backup_dir }}
 {% endif %}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "{{ nextcloud_aio_mastercontainer_ip_binding }}:8080:8080"
     environment:
       APACHE_PORT: {{ nextcloud_aio_apache_port }}
       APACHE_IP_BINDING: {{ nextcloud_aio_apache_ip_binding }}

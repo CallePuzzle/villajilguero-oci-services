@@ -1,4 +1,7 @@
 {{ nextcloud_aio_domain }} {
+{% if nextcloud_aio_caddy_tls_internal %}
+  tls internal
+{% endif %}
   header Strict-Transport-Security max-age=31536000
   reverse_proxy localhost:{{ nextcloud_aio_apache_port }}
   redir /.well-known/carddav /remote.php/dav/ 301

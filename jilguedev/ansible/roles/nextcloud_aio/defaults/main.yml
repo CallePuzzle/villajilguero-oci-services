@@ -9,6 +9,20 @@ nextcloud_aio_apache_port: 11000
 nextcloud_aio_apache_ip_binding: 127.0.0.1
 nextcloud_aio_skip_domain_validation: true
 
+# IP the mastercontainer's admin interface (port 8080) binds to.
+# Keep at 127.0.0.1 in production; only override to expose it (e.g. in test scenarios).
+nextcloud_aio_mastercontainer_ip_binding: 127.0.0.1
+
+# Serve Caddy's site with a locally-generated self-signed certificate
+# instead of requesting one from Let's Encrypt. Only for test scenarios
+# where nextcloud_aio_domain isn't a real, internet-reachable domain.
+nextcloud_aio_caddy_tls_internal: false
+
+# Rootless Docker storage driver override. Leave empty to use Docker's default
+# (native overlayfs). Set to "fuse-overlayfs" in nested/containerized test
+# environments where native overlay mounts are not available.
+nextcloud_aio_docker_storage_driver: ""
+
 # Data directory (must be set BEFORE first install; changing later causes data loss)
 # Set to empty string "" to use the default Docker volume
 nextcloud_aio_datadir: ""
