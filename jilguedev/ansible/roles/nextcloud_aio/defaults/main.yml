@@ -55,3 +55,11 @@ nextcloud_aio_enable_unattended_upgrades: true
 # Automated daily backup + updates via systemd user timer
 nextcloud_aio_backup_enabled: true
 nextcloud_aio_backup_time: "02:00"
+
+# Sync the local Borg backup to Backblaze B2 daily via cron, after the backup above finishes.
+# Requires the `b2` CLI to already be authorized on the host (`b2 account authorize`),
+# which is a manual, out-of-band step for now (credentials aren't yet managed via SOPS).
+nextcloud_aio_b2_sync_enabled: true
+nextcloud_aio_b2_sync_time: "05:00"
+nextcloud_aio_b2_version: "4.7.1"
+nextcloud_aio_b2_bucket: "b2://callepuzzle-nextcloud-borg-backup/"

@@ -354,6 +354,33 @@
     scope: user
   when: nextcloud_aio_backup_enabled | bool
 
+- name: Gather architecture fact (in case the play skipped fact gathering)
+  ansible.builtin.setup:
+    filter: ansible_architecture
+  when:
+    - nextcloud_aio_b2_sync_enabled | bool
+    - ansible_architecture is not defined
+
+- name: Install Backblaze B2 CLI
+  ansible.builtin.get_url:
+    url: "https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/v{{ nextcloud_aio_b2_version }}/b2-linux{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
+    dest: /usr/local/bin/b2
+    mode: "0755"
+  become: true
+  when: nextcloud_aio_b2_sync_enabled | bool
+
+- name: Schedule daily sync of Borg backup to Backblaze B2
+  ansible.builtin.cron:
+    name: Sync Nextcloud AIO Borg backup to Backblaze B2
+    user: "{{ docker_user }}"
+    hour: "{{ nextcloud_aio_b2_sync_time.split(':')[0] }}"
+    minute: "{{ nextcloud_aio_b2_sync_time.split(':')[1] }}"
+    job: >-
+      /usr/local/bin/b2 sync {{ nextcloud_aio_backup_dir }} {{ nextcloud_aio_b2_bucket }}
+      >> /home/{{ docker_user }}/nextcloud-aio-b2-sync.log 2>&1
+  become: true
+  when: nextcloud_aio_b2_sync_enabled | bool
+
 - name: Wait for AIO interface to be available
   ansible.builtin.uri:
     url: "https://localhost:8080"

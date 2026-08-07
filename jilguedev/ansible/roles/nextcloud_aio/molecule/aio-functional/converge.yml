@@ -81,5 +81,6 @@
     nextcloud_aio_enable_fail2ban: false
     nextcloud_aio_enable_unattended_upgrades: false
     nextcloud_aio_backup_enabled: false
+    nextcloud_aio_b2_sync_enabled: false
   roles:
     - nextcloud_aio
