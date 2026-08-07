@@ -17,7 +17,7 @@ terraform {
     }
     oci = {
       source  = "oracle/oci"
-      version = "6.18.0"
+      version = "8.23.0"
     }
   }
 }
@@ -46,22 +46,29 @@ data "sops_file" "credentials" {
 
 module "oci-k0s" {
   source = "../../terraform-module-k0s-oci/"
+  # source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.0.1"
 
   compartment_id  = data.sops_file.credentials.data["tenancy_ocid"]
   source_ocid     = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
+  ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDQz0jQlA0vQ99L42+yGd9tho4Y0NwfE3+jW0pnDVmHg51Q3Nfg3aKFwg+PzsgY8/kU72dUltnw8lbI/+N/df8weWxdTpBBOpxnV8lOcFvtzvKY3C9TwqLiXspVaLa1f4LvhJjlQQrhDyiVoE4T3Fk2OL40JKLrgwC31FrIPXc8QzKm1A7QuOFwEW+DbQgWeFnDJiwun5rBhl9yTJ75T5EWgx9brQd4VW4cePAnYouQ8UtgCvXG/tDDjkVvCA8so3TaL/u0gXqBhBS4SPmMUJgAa4OHxJ025PFeE1E1zl4zhJmPvqhzTbiJpzPlioKn2egZut9/sQujxxHYo50aFM01qGERThkowzROMxyX+lSN/oLlcFvIWxKuxj6scc36k6qhQPAIOcetr9IHqk2ZgE3iRrikEao0+ACULyujFIq8G5XW52At4qqm+mbx/7j+tUe4a8ewO+HR4ByJDvpBOZENb//5QHCDUdOz+j5IIj26SWpITKX70cMDVHnZushQv8P1ifJSE1/Oi06PxxLX7BghsI0bzCH7oykFoiMEThhMSYMQkpyw+T2B1tacWacMION2eVaYwvoY+GfQWGnEDvZT8DE9TUVYDwibt2SO2aRluCBJ2/4VcLi6onx9wcZqcQGt0m1cZgqPkFdC+Tuyk7l/yj+CPzkhQuBlMD53ulG6Dw== cesar@callepuzzle.com"
   k0s_config_path = "${path.root}/k0sctl.yaml"
-  k0s_version     = "v1.28.9+k0s.0"
+  k0s_version     = "1.28.9+k0s.0"
 
   argocd_host = "argocd.callepuzzle.com"
 
-  manifests_source = {
-    repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
-    target_revision = "main"
-    path            = "manifests"
-    plugin          = "sops"
-  }
-
-  instance_source_ocid = "ocid1.image.oc1.eu-marseille-1.aaaaaaaaqihfeepadhdma7udc7n2vlfmienfwim4vl53dkftvfikrlxfi3ca"
+  projects = [
+    {
+      name = "manifests"
+      source = {
+        repo_url        = "https://github.com/CallePuzzle/villajilguero-oci-services"
+        target_revision = "main"
+        path            = "manifests"
+        plugin          = "sops"
+      }
+      destination_namespace = "*"
+      auto_sync              = false
+    },
+  ]
 
   argocd_values = templatefile("${path.root}/argocd-values.yaml.tmpl", {
     argocd_host          = "argocd.callepuzzle.com"
