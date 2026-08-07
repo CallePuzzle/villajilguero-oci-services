@@ -1,0 +1,22 @@
+[project]
+name = "jilgue-ansible"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "César M. Cristóbal",email = "cesar@callepuzzle.com"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "ansible (>=13.6.0,<14.0.0)",
+    "molecule (>=25.0.0,<26.0.0)",
+    "molecule-plugins[podman] (>=23.0.0,<24.0.0)",
+    "pytest-testinfra (>=10.0.0,<11.0.0)"
+]
+
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

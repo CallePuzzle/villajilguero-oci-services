@@ -66,7 +66,7 @@ module "oci-k0s" {
         plugin          = "sops"
       }
       destination_namespace = "*"
-      auto_sync              = false
+      auto_sync             = false
     },
   ]
 

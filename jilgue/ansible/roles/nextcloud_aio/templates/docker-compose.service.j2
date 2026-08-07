@@ -1,0 +1,20 @@
+[Unit]
+Description=Docker Compose - Nextcloud AIO
+Documentation=https://docs.docker.com/engine/security/rootless/
+Wants=docker.service
+After=docker.service
+ConditionPathExists=/run/user/%U/docker.sock
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ nextcloud_aio_compose_path }}
+Environment=DOCKER_HOST=unix://{{ docker_socket_path }}
+Environment=PATH=/usr/bin:/bin:/usr/local/bin
+ExecStartPre=/bin/sh -c 'until [ -S {{ docker_socket_path }} ]; do sleep 1; done'
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose stop
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,17 @@
+---
+all:
+  hosts:
+    aio-functional-test:
+      ansible_host: aio-functional-test
+      ansible_connection: podman
+      container_image: docker.io/geerlingguy/docker-ubuntu2204-ansible:latest
+      # Host port that maps to the mastercontainer's admin UI (container port 8080).
+      container_published_port: 8443
+      docker_test_user: aiotest
+      # Read-only staging mount of the real backup, copied into a
+      # container-native (non-bind-mounted) directory during converge so the
+      # role's chown/chmod on the backup dir never touches the host copy.
+      backup_source_mount: /mnt/aio-backup-source
+      backup_dir_path: /home/aiotest/nextcloud-aio-backups
+      passphrase_source_mount: /mnt/aio-borg-passphrase-source
+      passphrase_file_path: /home/aiotest/borg-passphrase.txt

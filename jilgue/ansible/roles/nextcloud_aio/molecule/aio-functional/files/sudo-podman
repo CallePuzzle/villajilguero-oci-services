@@ -1,0 +1,6 @@
+#!/bin/sh
+# Wrapper so Ansible's podman connection plugin talks to the rootful
+# (sudo) podman storage instead of the invoking user's rootless one.
+# Nested rootless Docker requires the outer test container to be created
+# by rootful podman (see docs/plans/constantine-multiple-man-morbius.md).
+exec sudo -n podman "$@"

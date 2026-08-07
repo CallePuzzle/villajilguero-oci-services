@@ -1,0 +1,65 @@
+---
+nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
+nextcloud_aio_compose_file: docker-compose.yml
+docker_user: ubuntu
+nextcloud_aio_domain: aio.callepuzzle.com
+
+# Nextcloud AIO configuration
+nextcloud_aio_apache_port: 11000
+nextcloud_aio_apache_ip_binding: 127.0.0.1
+nextcloud_aio_skip_domain_validation: true
+
+# IP the mastercontainer's admin interface (port 8080) binds to.
+# Keep at 127.0.0.1 in production; only override to expose it (e.g. in test scenarios).
+nextcloud_aio_mastercontainer_ip_binding: 127.0.0.1
+
+# Serve Caddy's site with a locally-generated self-signed certificate
+# instead of requesting one from Let's Encrypt. Only for test scenarios
+# where nextcloud_aio_domain isn't a real, internet-reachable domain.
+nextcloud_aio_caddy_tls_internal: false
+
+# Rootless Docker storage driver override. Leave empty to use Docker's default
+# (native overlayfs). Set to "fuse-overlayfs" in nested/containerized test
+# environments where native overlay mounts are not available.
+nextcloud_aio_docker_storage_driver: ""
+
+# Data directory (must be set BEFORE first install; changing later causes data loss)
+# Set to empty string "" to use the default Docker volume
+nextcloud_aio_datadir: ""
+
+# PHP / performance limits
+nextcloud_aio_memory_limit: 2048M
+nextcloud_aio_upload_limit: 16G
+nextcloud_aio_max_time: 3600
+
+# Backup retention policy for BorgBackup
+nextcloud_aio_borg_retention_policy: "--keep-within=7d --keep-weekly=4 --keep-monthly=6"
+
+# AIO log level: error, warn, info, debug
+nextcloud_aio_log_level: warn
+
+# Trusted proxies for Nextcloud (e.g. reverse proxy / load balancer IPs)
+nextcloud_aio_trusted_proxies: "127.0.0.1"
+
+# Enable the backup section in the AIO UI so a backup destination can be configured
+nextcloud_aio_disable_backup_section: false
+
+# Local directory used as Borg backup target (mounted into the mastercontainer)
+nextcloud_aio_backup_dir: /home/ubuntu/nextcloud-aio-backups
+
+# OS hardening
+nextcloud_aio_enable_ufw: true
+nextcloud_aio_enable_fail2ban: true
+nextcloud_aio_enable_unattended_upgrades: true
+
+# Automated daily backup + updates via systemd user timer
+nextcloud_aio_backup_enabled: true
+nextcloud_aio_backup_time: "02:00"
+
+# Sync the local Borg backup to Backblaze B2 daily via cron, after the backup above finishes.
+# Requires the `b2` CLI to already be authorized on the host (`b2 account authorize`),
+# which is a manual, out-of-band step for now (credentials aren't yet managed via SOPS).
+nextcloud_aio_b2_sync_enabled: true
+nextcloud_aio_b2_sync_time: "05:00"
+nextcloud_aio_b2_version: "4.7.1"
+nextcloud_aio_b2_bucket: "b2://callepuzzle-nextcloud-borg-backup/"
