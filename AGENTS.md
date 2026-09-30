@@ -41,6 +41,33 @@ poetry run molecule test --scenario-name b2-restore       # verify B2 backup res
 - `b2-restore` expects the backup at `tmp/nextcloud-aio-borg-backup/` and the passphrase in root `.borg.txt` (both gitignored).
 - Faster alternative without a container: `poetry run ansible-playbook playbooks/verify-b2-backup.yml`.
 
+## SonarCloud
+
+Code analysis runs via the SonarCloud GitHub app: only `main` and open PRs are analyzed (a feature branch on its own never appears in SonarCloud — issues surface on the PR as a comment + the "SonarCloud Code Analysis" GitHub check).
+
+**On every PR in this repo, check the Sonar status and resolve the issues it reports** (fix the code, or justify + resolve them as described below) before merging.
+
+- Org `callepuzzle`, project key `CallePuzzle_villajilguero-oci-services`. Project is public → read APIs need no token.
+- User token (login `jilgue@github`) lives in `~/projects/SONAR_TOKEN` — `source` it, don't print it.
+- API reference: https://sonarcloud.io/web_api
+
+Checking status (replace `<PR>`):
+
+```bash
+source ~/projects/SONAR_TOKEN
+# open issues on the PR
+curl -su "$SONAR_TOKEN:" "https://sonarcloud.io/api/issues/search?componentKeys=CallePuzzle_villajilguero-oci-services&pullRequest=<PR>&resolved=false&ps=100&additionalFields=comments"
+# quality gate per PR (qualityGateStatus: OK|ERROR + issue counts)
+curl -su "$SONAR_TOKEN:" "https://sonarcloud.io/api/project_pull_requests/list?project=CallePuzzle_villajilguero-oci-services"
+```
+
+Resolving an issue (false positive / accepted risk — prefer this over contorting code; precedent: all 10 issues of PR #29):
+
+1. Requires the project-level **Administer issues** permission for `jilgue@github`. Gotcha: that checkbox only exists on the *project's* permission page (Administration → Permissions → Users), not on the org permissions page — org-level `admin` alone is NOT enough.
+2. `POST api/issues/do_transition` with `issue=<key>&transition=wontfix` (accepted risk) or `falsepositive` (genuine FP), then `POST api/issues/add_comment` with the justification, in the same run.
+3. Gotchas: `additionalFields=actions` does not list available transitions (just attempt `wontfix`); the CloudFront WAF in front of SonarCloud rejects POST bodies containing the literal `https://localhost` (HTML 403, empty JSON body) — phrase comments as `localhost:8080 (HTTPS)`.
+4. The API reflects the change immediately, but the GitHub check only turns green on the next analysis (push).
+
 ## Secrets (hard rules)
 
 - **All secrets SOPS-encrypted with age keys, never PGP.** Never commit plaintext secrets.
