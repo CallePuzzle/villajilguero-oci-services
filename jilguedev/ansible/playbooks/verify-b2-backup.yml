@@ -1,0 +1,112 @@
+---
+- name: Verify production B2 backup contains expected Nextcloud users
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir }}/../../.."
+    borg_repo_path: "{{ repo_root }}/tmp/nextcloud-aio-borg-backup"
+    borg_passphrase_file: "{{ repo_root }}/.borg.txt"
+    borg_archive_name: "20260806_040126-nextcloud-aio"
+    extract_dir: "{{ repo_root }}/tmp/borg-verify"
+    expected_users:
+      - cesar
+      - nuria
+  tasks:
+    - name: Check passphrase file exists
+      ansible.builtin.stat:
+        path: "{{ borg_passphrase_file }}"
+      register: passphrase_file
+
+    - name: Fail if passphrase file is missing
+      ansible.builtin.fail:
+        msg: "Passphrase file not found: {{ borg_passphrase_file }}"
+      when: not passphrase_file.stat.exists
+
+    - name: Read Borg passphrase
+      ansible.builtin.slurp:
+        src: "{{ borg_passphrase_file }}"
+      register: borg_passphrase_b64
+      no_log: true
+
+    - name: Set Borg passphrase fact
+      ansible.builtin.set_fact:
+        borg_passphrase: "{{ borg_passphrase_b64.content | b64decode | trim }}"
+      no_log: true
+
+    - name: Ensure borgbackup virtualenv exists
+      ansible.builtin.pip:
+        name: borgbackup
+        virtualenv: "{{ repo_root }}/.venv-borg"
+        virtualenv_command: python3 -m venv
+      register: venv_install
+      changed_when: venv_install.changed
+
+    - name: Check Borg repository integrity
+      ansible.builtin.command:
+        cmd: "{{ repo_root }}/.venv-borg/bin/borg check {{ borg_repo_path }}"
+      environment:
+        BORG_PASSPHRASE: "{{ borg_passphrase }}"
+      changed_when: false
+      register: borg_check_result
+
+    - name: List Borg archives
+      ansible.builtin.command:
+        cmd: "{{ repo_root }}/.venv-borg/bin/borg list {{ borg_repo_path }}"
+      environment:
+        BORG_PASSPHRASE: "{{ borg_passphrase }}"
+      changed_when: false
+      register: borg_list_result
+
+    - name: Display available archives
+      ansible.builtin.debug:
+        msg: "{{ borg_list_result.stdout_lines }}"
+
+    - name: Assert at least one archive exists
+      ansible.builtin.assert:
+        that:
+          - borg_list_result.stdout_lines | length > 0
+        fail_msg: "No Borg archives found in the backup repository"
+
+    - name: Ensure extract directory exists
+      ansible.builtin.file:
+        path: "{{ extract_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Clean old database dump if present
+      ansible.builtin.file:
+        path: "{{ extract_dir }}/database-dump.sql"
+        state: absent
+
+    - name: Extract database dump from the latest archive
+      ansible.builtin.command:
+        cmd: >-
+          {{ repo_root }}/.venv-borg/bin/borg extract --strip-components 2
+          {{ borg_repo_path }}::{{ borg_archive_name }}
+          nextcloud_aio_volumes/nextcloud_aio_database_dump/database-dump.sql
+        chdir: "{{ extract_dir }}"
+      environment:
+        BORG_PASSPHRASE: "{{ borg_passphrase }}"
+      changed_when: true
+
+    - name: Check database dump was extracted
+      ansible.builtin.stat:
+        path: "{{ extract_dir }}/database-dump.sql"
+      register: dump_file
+
+    - name: Assert database dump exists
+      ansible.builtin.assert:
+        that:
+          - dump_file.stat.exists
+        fail_msg: "database-dump.sql was not extracted from the backup"
+
+    - name: Verify expected users exist in the database dump
+      ansible.builtin.shell:
+        cmd: "grep -P '^{{ item }}\\t' {{ extract_dir }}/database-dump.sql"
+      loop: "{{ expected_users }}"
+      changed_when: false
+      register: user_check
+
+    - name: Report success
+      ansible.builtin.debug:
+        msg: "Backup verification passed: users {{ expected_users | join(', ') }} found in database dump."

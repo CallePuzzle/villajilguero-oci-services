@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Nextcloud AIO Daily Backup and Update at {{ nextcloud_aio_backup_time }}
+Requires=nextcloud-aio-backup.service
+
+[Timer]
+OnCalendar=*-*-* {{ nextcloud_aio_backup_time }}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

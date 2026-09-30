@@ -1,0 +1,37 @@
+---
+- name: Create container for the AIO functional test
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create test container (rootful podman, needed for nested rootless Docker)
+      containers.podman.podman_container:
+        name: "{{ hostvars[item].ansible_host }}"
+        image: "{{ hostvars[item].container_image }}"
+        executable: "{{ playbook_dir }}/files/sudo-podman"
+        systemd: always
+        privileged: true
+        # Podman's default pids-limit (2048) is shared across the whole
+        # nested AIO stack (mastercontainer + apache + nextcloud + db +
+        # redis + clamav + ...). It's fine at steady state but bursts
+        # (container restarts, Apache spawning worker threads, docker exec)
+        # push past it, causing random fork()/clone() EAGAIN failures
+        # anywhere in the stack. Can't be changed on a running container
+        # (crun refuses resource updates on --privileged containers using a
+        # BPF device program), so it must be set at creation time.
+        pids_limit: "-1"
+        device:
+          - /dev/fuse
+        state: started
+        detach: true
+        publish:
+          - "{{ hostvars[item].container_published_port }}:8080"
+        volumes:
+          - "{{ playbook_dir }}/../../../../../../tmp/nextcloud-aio-borg-backup:{{ hostvars[item].backup_source_mount }}:ro"
+          - "{{ playbook_dir }}/../../../../../../.borg.txt:{{ hostvars[item].passphrase_source_mount }}:ro"
+      loop: "{{ groups['all'] }}"
+
+    - name: Wait for containers to be ready
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+      delegate_to: "{{ hostvars[item].ansible_host }}"
+      loop: "{{ groups['all'] }}"

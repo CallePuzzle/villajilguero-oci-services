@@ -1,0 +1,86 @@
+---
+- name: Bootstrap the rootless-Docker test user
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ensure sudo is installed
+      ansible.builtin.apt:
+        name: sudo
+        state: present
+        update_cache: true
+
+    - name: Create the rootless-docker test user
+      ansible.builtin.user:
+        name: "{{ docker_test_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Allow the test user passwordless sudo (disposable test container only)
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ docker_test_user }}"
+        content: "{{ docker_test_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Copy the Borg passphrase into the test user's home
+      ansible.builtin.copy:
+        src: "{{ passphrase_source_mount }}"
+        dest: "{{ passphrase_file_path }}"
+        remote_src: true
+        owner: "{{ docker_test_user }}"
+        group: "{{ docker_test_user }}"
+        mode: "0440"
+
+    - name: Ensure the container-local backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir_path }}"
+        state: directory
+        mode: "0750"
+
+    # Copies out of the read-only host mount into a directory that lives
+    # entirely in the container's own filesystem, so that the role's later
+    # chown/chmod on nextcloud_aio_backup_dir never touches the real,
+    # bind-mounted production backup on the host.
+    - name: Copy the production Borg backup into container-local storage
+      ansible.builtin.command:
+        cmd: "cp -a {{ backup_source_mount }}/. {{ backup_dir_path }}/"
+      args:
+        creates: "{{ backup_dir_path }}/config"
+
+- name: Deploy the nextcloud_aio role
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_user: "{{ docker_test_user }}"
+    docker_user: "{{ docker_test_user }}"
+    nextcloud_aio_compose_path: "/home/{{ docker_test_user }}/nextcloud-aio"
+    nextcloud_aio_backup_dir: "{{ backup_dir_path }}"
+    # Matches the domain baked into the restored production config
+    # (Nextcloud's overwritehost/overwriteprotocol get re-applied by AIO's
+    # own restored mastercontainer state on every container restart,
+    # regardless of this var) so Caddy's site block actually lines up with
+    # what the restored instance expects to be reached as.
+    nextcloud_aio_domain: aio.callepuzzle.com
+    # No real DNS/ACME available in this nested test container; serve a
+    # locally-generated self-signed cert instead of hitting Let's Encrypt.
+    nextcloud_aio_caddy_tls_internal: true
+    # Bind the admin UI and the actual Nextcloud/Apache container to all
+    # interfaces inside the container. The mastercontainer's port is
+    # published to the real host by create.yml; Apache isn't published but
+    # is reachable directly at the container's routable Podman bridge IP
+    # (rootful Podman's bridge is host-routable, unlike rootless/slirp4netns).
+    nextcloud_aio_mastercontainer_ip_binding: "0.0.0.0"
+    nextcloud_aio_apache_ip_binding: "0.0.0.0"
+    # Native overlayfs mounts aren't available this deep in nested
+    # containers; fuse-overlayfs is the supported fallback.
+    nextcloud_aio_docker_storage_driver: fuse-overlayfs
+    # Hardening is orthogonal to what this scenario validates (a working
+    # AIO instance you can restore into) and adds failure modes specific
+    # to running nested inside a container.
+    nextcloud_aio_enable_ufw: false
+    nextcloud_aio_enable_fail2ban: false
+    nextcloud_aio_enable_unattended_upgrades: false
+    nextcloud_aio_backup_enabled: false
+    nextcloud_aio_b2_sync_enabled: false
+  roles:
+    - nextcloud_aio

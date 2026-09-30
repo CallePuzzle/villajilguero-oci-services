@@ -1,0 +1,24 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ../requirements.yml
+
+driver:
+  name: default
+
+provisioner:
+  name: ansible
+  inventory:
+    links:
+      hosts: inventory.yml
+
+scenario:
+  name: b2-restore
+  test_sequence:
+    - dependency
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy

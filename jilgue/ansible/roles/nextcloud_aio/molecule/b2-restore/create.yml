@@ -1,0 +1,22 @@
+---
+- name: Create container instance for B2 backup verification
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create test container
+      containers.podman.podman_container:
+        name: "{{ hostvars[item].ansible_host }}"
+        image: "{{ hostvars[item].container_image }}"
+        command: "{{ hostvars[item].container_command }}"
+        state: started
+        detach: true
+        volumes:
+          - "{{ playbook_dir }}/../../../../../../:/repo:ro"
+          - "{{ playbook_dir }}/../../../../../../tmp/nextcloud-aio-borg-backup:/backup"
+      loop: "{{ groups['all'] }}"
+
+    - name: Wait for containers to be ready
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+      delegate_to: "{{ hostvars[item].ansible_host }}"
+      loop: "{{ groups['all'] }}"

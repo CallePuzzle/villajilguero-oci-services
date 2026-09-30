@@ -86,7 +86,7 @@
     creates: "/home/{{ docker_user }}/.config/systemd/user/docker.service"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ docker_uid }}"
-    PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
 
 - name: Install fuse-overlayfs
   ansible.builtin.apt:
@@ -309,7 +309,7 @@
     chdir: "{{ nextcloud_aio_compose_path }}"
   environment:
     DOCKER_HOST: "unix://{{ docker_socket_path }}"
-    PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
   when: nextcloud_aio_compose_file.changed
 
 # Caddy only reads its Caddyfile at startup, and it's a bind-mounted file
@@ -320,7 +320,7 @@
     cmd: docker restart caddy
   environment:
     DOCKER_HOST: "unix://{{ docker_socket_path }}"
-    PATH: "{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
   when: nextcloud_aio_caddyfile.changed
 
 - name: Create Nextcloud AIO backup systemd service
@@ -359,11 +359,11 @@
     filter: ansible_architecture
   when:
     - nextcloud_aio_b2_sync_enabled | bool
-    - ansible_architecture is not defined
+    - ansible_facts.architecture is not defined
 
 - name: Install Backblaze B2 CLI
   ansible.builtin.get_url:
-    url: "https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/v{{ nextcloud_aio_b2_version }}/b2-linux{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
+    url: "https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/v{{ nextcloud_aio_b2_version }}/b2-linux{{ '-aarch64' if ansible_facts.architecture == 'aarch64' else '' }}"
     dest: /usr/local/bin/b2
     mode: "0755"
   become: true

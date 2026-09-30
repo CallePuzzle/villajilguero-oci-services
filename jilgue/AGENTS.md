@@ -1,6 +1,6 @@
-# AGENTS.md - jilguedev
+# AGENTS.md - jilgue
 
-Entorno de desarrollo para Nextcloud All-in-One (AIO) desplegado en una instancia OCI Ubuntu con Docker rootless.
+Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instancia OCI Ubuntu con Docker rootless.
 
 ## Arquitectura
 
@@ -13,7 +13,7 @@ Entorno de desarrollo para Nextcloud All-in-One (AIO) desplegado en una instanci
 
 ### Despliegue inicial
 ```bash
-cd jilguedev
+cd jilgue
 terraform apply
 cd ansible
 poetry install
@@ -39,6 +39,12 @@ El script ejecuta:
 docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-mastercontainer /daily-backup.sh
 ```
 
+**Sincronización a Backblaze B2**: Un cron diario (por defecto a las 05:00, tres horas después del backup de Borg) sincroniza `nextcloud_aio_backup_dir` al bucket B2 configurado en `nextcloud_aio_b2_bucket` mediante el CLI `b2`:
+```bash
+/usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
+```
+El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI se instala automáticamente por Ansible, pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
+
 **Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
 
 **Restauración**: Solo se necesita el backup de Borg + la contraseña de encriptación. Se restaura completo desde la UI de AIO.
@@ -48,7 +54,7 @@ docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-masterc
 1. **Molecule (recomendado)**: ejecuta la verificación dentro de un contenedor Podman desechable:
 
 ```bash
-cd jilguedev/ansible/roles/nextcloud_aio
+cd jilgue/ansible/roles/nextcloud_aio
 # Asegúrate de tener el backup en tmp/nextcloud-aio-borg-backup/
 # y la passphrase en .borg.txt (ambos ignorados por git)
 poetry run molecule test --scenario-name b2-restore
@@ -57,7 +63,7 @@ poetry run molecule test --scenario-name b2-restore
 2. **Playbook local**: para comprobaciones rápidas sin contenedor:
 
 ```bash
-cd jilguedev/ansible
+cd jilgue/ansible
 poetry run ansible-playbook playbooks/verify-b2-backup.yml
 ```
 
@@ -95,6 +101,10 @@ Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles e
 | `nextcloud_aio_backup_dir` | Directorio host para backups locales de Borg | `/home/ubuntu/nextcloud-aio-backups` |
 | `nextcloud_aio_backup_enabled` | Habilitar timer de backup diario | `true` |
 | `nextcloud_aio_backup_time` | Hora del backup diario | `02:00` |
+| `nextcloud_aio_b2_sync_enabled` | Habilitar sincronización diaria del backup a Backblaze B2 | `true` |
+| `nextcloud_aio_b2_sync_time` | Hora de la sincronización a B2 | `05:00` |
+| `nextcloud_aio_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
+| `nextcloud_aio_b2_bucket` | Bucket B2 destino de la sincronización | `b2://callepuzzle-nextcloud-borg-backup/` |
 | `nextcloud_aio_enable_ufw` | Habilitar UFW | `true` |
 | `nextcloud_aio_enable_fail2ban` | Habilitar fail2ban | `true` |
 | `nextcloud_aio_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
@@ -107,3 +117,4 @@ El daemon rootless se configura con:
 ### Advertencias
 - `NEXTCLOUD_DATADIR` **solo puede configurarse antes del primer arranque** de Nextcloud. Cambiarlo después requiere recrear la instalación.
 - El puerto 8080 (AIO admin) está denegado en UFW y no tiene regla de ingress en la Security List de OCI, por lo que solo es accesible via túnel SSH (`ssh -L 8080:localhost:8080 ubuntu@<ip>`).
+- `nextcloud_aio_b2_sync_enabled` requiere que el CLI `b2` esté autorizado manualmente en el host (`b2 account authorize`) antes de que el cron pueda sincronizar; las credenciales aún no se gestionan vía SOPS.
