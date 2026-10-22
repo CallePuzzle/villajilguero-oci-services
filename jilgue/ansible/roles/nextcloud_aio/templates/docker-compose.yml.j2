@@ -32,7 +32,9 @@ services:
     logging:
       driver: "local"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      # HTTP probes always fail (AIO's internal server returns 400 to them),
+      # so check the TCP listener instead
+      test: ["CMD", "nc", "-z", "127.0.0.1", "8080"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -50,7 +52,9 @@ services:
     logging:
       driver: "local"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      # wget probes fail: Caddy 308-redirects to HTTPS and BusyBox wget breaks
+      # on the TLS handshake, so check the TLS listener via TCP instead
+      test: ["CMD", "nc", "-z", "127.0.0.1", "443"]
       interval: 30s
       timeout: 10s
       retries: 3
