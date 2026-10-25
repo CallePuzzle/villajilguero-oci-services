@@ -3,3 +3,4 @@ secrets.yaml
 private_key.pem
 provider-vars.profile
 nextcloud_s3_secrets.json
+kubeconfig

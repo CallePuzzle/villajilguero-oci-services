@@ -1,0 +1,146 @@
+redis-ha:
+  enabled: false
+
+redis:
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+dex:
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+controller:
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 50m
+      memory: 256Mi
+
+server:
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 50m
+      memory: 256Mi
+  ingress:
+    enabled: true
+    # Traefik (extensión Helm de k0s) expone el ingressClass "nginx".
+    ingressClassName: nginx
+    hostname: ${argocd_host}
+
+repoServer:
+  replicas: 1
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  extraContainers:
+    - name: tanka-sops
+      command:
+        - "/var/run/argocd/argocd-cmp-server"
+      image: ghcr.io/callepuzzle/docker-image-tanka-sops:v1.0.1
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: SOPS_AGE_KEY
+          value: ${sops_age_key}
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        # Remove this volumeMount if you've chosen to bake the config file into the sidecar image.
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: tanka-sops.yaml
+          name: argocd-cmp-cm
+        # Starting with v2.4, do NOT mount the same tmp volume as the repo-server container. The filesystem separation helps
+        # mitigate path traversal attacks.
+        - mountPath: /tmp
+          name: cmp-tmp
+  volumes:
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
+
+applicationSet:
+  replicaCount: 1
+
+notifications:
+  enabled: false
+
+configs:
+  params:
+     server.insecure: true
+  repositories:
+    infra:
+      url: git@github.com:CallePuzzle/villajilguero-oci-services.git
+      sshPrivateKey: |
+        ${indent(8, infra_repo_deploy_key)}
+  cm:
+    url: https://${argocd_host}
+    admin.enabled: false
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: ${github_client_id}
+            clientSecret: ${github_client_secret}
+            redirectURI: "https://${argocd_host}/api/dex/callback"
+            orgs:
+            - name: ${github_org_name}
+  rbac:
+    policy.default: "role:admin"
+    policy.csv: |
+      p, role:org-admin, applications, *, */*, allow
+      p, role:org-admin, clusters, get, *, allow
+      p, role:org-admin, repositories, get, *, allow
+      p, role:org-admin, repositories, create, *, allow
+      p, role:org-admin, repositories, update, *, allow
+      p, role:org-admin, repositories, delete, *, allow
+      p, role:org-admin, projects, get, *, allow
+      p, role:org-admin, projects, create, *, allow
+      p, role:org-admin, projects, update, *, allow
+      p, role:org-admin, projects, delete, *, allow
+      p, role:org-admin, logs, get, *, allow
+      p, role:org-admin, exec, create, */*, allow
+      g, ${github_org_name}, role:org-admin
+  cmp:
+    create: true
+    plugins:
+      tanka-sops:
+        init:
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              [[ -f jsonnetfile.lock.json ]] && jb install -q
+        generate:
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              shopt -s nullglob
+              if [[ ! -z $$ARGOCD_ENV_ENVIRONMENT ]]; then
+                sops -d --output-type json --input-type json --output $$ARGOCD_ENV_ENVIRONMENT/secrets.json $$ARGOCD_ENV_ENVIRONMENT/secrets.enc
+                tk show $$ARGOCD_ENV_ENVIRONMENT --dangerous-allow-redirect
+              else
+                sops -d --output-type json --input-type json --output secrets.json secrets.enc
+                tk show . --dangerous-allow-redirect
+              fi
