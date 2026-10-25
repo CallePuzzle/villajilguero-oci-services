@@ -4,7 +4,7 @@ Nextcloud All-in-One (AIO) on single OCI Ubuntu instances, managed with Terrafor
 
 The old Kubernetes/ArgoCD stack (`jsonnet/`, `k0s/`, `manifests/`, `test/`) was deleted repo-wide in e78fd93 — it only exists in git history.
 
-**Branch-dependent caveat**: branch `30-migrar-jilguedev` carries in-flight migration work that turns `jilguedev/` into a k0s + ArgoCD + CloudNativePG cluster (`enable_k0s = true`, app-of-apps pointing at `jilguedev/app-of-apps`, which does not exist in the tree yet). Don't assume both envs share the same Terraform shape; check the working tree first.
+**Branch-dependent caveat**: branch `30-migrar-jilguedev` carries in-flight migration work that turns `jilguedev/` into a k0s + ArgoCD + CloudNativePG cluster (`enable_k0s = true`, app-of-apps pointing at `jilguedev/app-of-apps`, a Tanka project following the Zytera pattern; `jilguedev/ansible/` deletion and docs rewrite still pending). Don't assume both envs share the same Terraform shape; check the working tree first.
 
 ## Environments
 
