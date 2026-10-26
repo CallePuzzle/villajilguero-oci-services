@@ -71,7 +71,12 @@ function(secrets)
         repoURL: 'git@github.com:CallePuzzle/y-tu-que-compras.git',
         targetRevision: 'main',
         autoSync: true,
-      } + common_values,
+      } + common_values + {
+        // La app vive en deploy/pro de su repo: es su entorno de producción
+        // (el «dev» del clúster es del entorno de infra, no de la app). El
+        // CMP tanka-sops ejecuta `tk show pro` dentro de deploy/.
+        environment: 'pro',
+      },
       // La lib compone el nombre como name + '-' + projectName; conservamos
       // el nombre corto, igual que hace Zytera con sus apps.
       metadata+: {
