@@ -3,10 +3,10 @@ local tk = import 'tk';
 local _argocd_app = (import 'github.com/CallePuzzle/jsonnet-lib-manifests/argocd-app.libsonnet');
 local _argocd_repository = (import 'github.com/CallePuzzle/jsonnet-lib-manifests/argocd-repository.libsonnet');
 
-// Contenido del app-of-apps del entorno dev. La Application raíz
-// `app-of-apps-dev` (chart argocd-apps, creada por Terraform) apunta a este
-// proyecto Tanka con `plugin.env ENVIRONMENT=dev`; el CMP tanka-sops
-// desencripta dev/secrets.enc a dev/secrets.json, que este fichero recibe
+// Contenido del app-of-apps del entorno pro. La Application raíz
+// `app-of-apps-pro` (chart argocd-apps, creada por Terraform) apunta a este
+// proyecto Tanka con `plugin.env ENVIRONMENT=pro`; el CMP tanka-sops
+// desencripta pro/secrets.enc a pro/secrets.json, que este fichero recibe
 // como parámetro.
 //
 // Pin de jsonnet-lib-manifests en 2da3fe2: es la versión en la que la lib

@@ -78,14 +78,19 @@ module "oci-k0s" {
 
   projects = [
     {
-      name = "app-of-apps-dev"
+      # «pro» porque es el entorno productivo de las apps de este clúster (el
+      # `environment = "dev"` del módulo es naming de la infra: etiquetas OCI,
+      # etc.). Este override es el ENVIRONMENT que el CMP tanka-sops le pasa al
+      # render: `tk show pro` dentro de jilguedev/app-of-apps.
+      name        = "app-of-apps-pro"
+      environment = "pro"
       source = {
         repo_url        = "git@github.com:CallePuzzle/villajilguero-oci-services.git"
-        target_revision = "main"
+        target_revision = "30-migrar-jilguedev"
         path            = "jilguedev/app-of-apps"
         plugin          = "tanka-sops"
       }
-      destination_namespace        = "callepuzzle-dev"
+      destination_namespace        = "callepuzzle-pro"
       auto_sync                    = true
       extra_destination_namespaces = ["cnpg-system"]
       # Whitelists cluster-scope para el operador CloudNativePG (CRDs, RBAC y
@@ -190,7 +195,7 @@ resource "oci_objectstorage_bucket" "db_backups" {
   versioning     = "Disabled"
 }
 
-# Credenciales S3 para los secrets de Tanka (jilguedev/app-of-apps/dev/secrets.enc)
+# Credenciales S3 para los secrets de Tanka (jilguedev/app-of-apps/pro/secrets.enc)
 output "db_backup_access_key_id" {
   value = oci_identity_customer_secret_key.db_backup.id
 }
