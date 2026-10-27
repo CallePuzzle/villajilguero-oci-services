@@ -2,7 +2,7 @@
 
 Entorno de desarrollo: **cluster k0s de un nodo** en OCI Ubuntu, gestionado con Terraform (infra) + ArgoCD (GitOps).
 
-> **En migración** (rama `30-migrar-jilguedev`): el antiguo stack Nextcloud AIO + Docker rootless + Caddy + Ansible está siendo sustituido. Terraform ya no aprovisiona AIO ni genera `ansible/inventory/oci_docker.yml`; el directorio `ansible/` queda huérfano en este entorno. Para el stack AIO (producción) ver `jilgue/AGENTS.md`.
+> **Migración completada en la rama `30-migrar-jilguedev`** (issue #30): el stack Nextcloud AIO + Docker rootless + Caddy + Ansible fue eliminado (`ansible/` ya no existe en este entorno; solo en el historial git). Pendiente al merge: devolver `target_revision` del AppProject a `main` y quitar el caveat de rama del `AGENTS.md` raíz. Para el stack AIO (producción) ver `jilgue/AGENTS.md`.
 
 ## Arquitectura
 
@@ -10,7 +10,7 @@ Entorno de desarrollo: **cluster k0s de un nodo** en OCI Ubuntu, gestionado con 
 - **Ingress/TLS**: Traefik (Helm extension de k0s), ingressClass `nginx`. El LB de OCI va en **passthrough TCP** (`https_backend_port = 443`): el TLS lo termina Cloudflare (proxy, modo "Full" sin strict) y Traefik usa certificado self-signed. **Sin cert-manager**.
 - **Storage**: `enable_openebs = true` → storage class `openebs-hostpath`, requerida por CloudNativePG.
 - **ArgoCD**: `https://argocd.callepuzzle.com` con SSO GitHub vía Dex (org `CallePuzzle`, admin local deshabilitado). Plugin CMP **tanka-sops** (sidecar en el repoServer con `SOPS_AGE_KEY`). Los values se generan desde `argocd-values.yaml.tmpl` + `secrets.enc.yaml`.
-- **AppProject `app-of-apps-pro`**: apunta a `jilguedev/app-of-apps` en este repo (`main`, auto-sync), con plugin CMP `tanka-sops` y `ENVIRONMENT=pro`. Repos permitidos: `y-tu-que-compras` y el chart de CloudNativePG; namespaces de destino `callepuzzle-pro` + `cnpg-system` (con whitelists cluster-scope para CRDs, RBAC y webhooks de CNPG).
+- **AppProject `app-of-apps-pro`**: apunta a `jilguedev/app-of-apps` en este repo (auto-sync; mientras dure la rama, `target_revision = "30-migrar-jilguedev"` en `main.tf` — devolver a `main` en el merge), con plugin CMP `tanka-sops` y `ENVIRONMENT=pro`. Repos permitidos: `y-tu-que-compras` y el chart de CloudNativePG; namespaces de destino `callepuzzle-pro` + `cnpg-system` (con whitelists cluster-scope para CRDs, RBAC y webhooks de CNPG).
 - **GitOps (`app-of-apps/`)**: proyecto Tanka único con entorno `pro/` (`main.jsonnet` + `spec.json` + `secrets.enc`). `lib/main.libsonnet(secrets)` genera: el `Namespace` `callepuzzle-pro`, el Secret `token-registry` (pull de ghcr.io), la `Application` `cnpg-pro` (chart `cloudnative-pg` 0.29.0, ns `cnpg-system`, antes que la app) y el par `Repository` + `Application` `y-tu-que-compras-pro` (path `deploy`, plugin `tanka-sops`, targetRevision `main`, autoSync **sin** prune y **sin** finalizer: el CI de la app es dueño de los manifiestos y borrar la Application no borra lo desplegado).
 - **Pin de la lib**: `jsonnet-lib-manifests` va fijado a `2da3fe2` (el mismo de Zytera): genera `path` + `plugin tanka-sops` + `ENVIRONMENT` desde `values.environment`; versiones posteriores hacen `path` y `plugin` excluyentes. Tras cambiar dependencias: `cd jilguedev/app-of-apps && jb install`.
 
@@ -36,7 +36,7 @@ jb install                                              # solo la primera vez (v
 export SOPS_AGE_KEY_FILE=$HOME/projects/age-key.txt
 sops -d --output-type json pro/secrets.enc > pro/secrets.json   # gitignored
 tk show pro --dangerous-allow-redirect
-rm dev/secrets.json
+rm pro/secrets.json
 ```
 
 ## Backups (ytqc-db → OCI Object Storage, barman)
@@ -48,19 +48,19 @@ rm dev/secrets.json
 
 ### Secrets de Tanka (`app-of-apps/pro/secrets.enc`)
 
-SOPS/age (mismo recipient que `secrets.enc.yaml`), formato JSON. El CMP lo desencripta a `dev/secrets.json` (gitignored) en cada `generate`. Claves:
+SOPS/age (mismo recipient que `secrets.enc.yaml`), **formato JSON obligatorio** (el CMP descifra con `--input-type json`; guardarlo como YAML rompe el render del app-of-apps, pasó en `ff5d998`). El CMP lo desencripta a `pro/secrets.json` (gitignored) en cada `generate`. Claves:
 
 | Clave | Consumidor | Estado |
 |---|---|---|
-| `registry_password` | Secret `token-registry` (pull de ghcr.io) | ⚠️ **vacía**: falta PAT `read:packages` (`sops jilguedev/app-of-apps/pro/secrets.enc`) |
+| `registry_password` | Secret `token-registry` (pull de ghcr.io) | PAT `read:packages` de ghcr.io |
 | `y_tu_que_compras_deploy_key` | `Repository` de Argo CD (clone SSH de la app) | deploy key read-only `argocd-jilguedev-ytqc` (copia privada en `~/projects/ytqc-argocd-ed25519`) |
 | `DB_APP_PASSWORD` | rol app de `ytqc-db` (fase 3, en el `deploy/` de la app) | generado aleatorio |
 | `BACKUP_ACCESS_KEY_ID` / `BACKUP_ACCESS_SECRET_KEY` | backups barman de `ytqc-db` (fase 3) | outputs de Terraform |
 | `BETTER_AUTH_SECRET` | Secret de la app (fase 3) | generado aleatorio |
-| `SMTP_HOST`, `SMPT_AUTH_USER`, `SMPT_AUTH_PASS`, `SMPT_SENDER` | envío OTP por email (fase 3) | ⚠️ **vacías**: credenciales de OCI Email Delivery (nótese el typo `SMPT_` en tres de ellas: intencional, así están desplegadas en la app) |
+| `SMTP_HOST`, `SMPT_AUTH_USER`, `SMPT_AUTH_PASS`, `SMPT_SENDER` | envío OTP por email | **No viven aquí**: están en el `deploy/pro/secrets.enc` del repo `y-tu-que-compras` (todas rellenas; typo `SMPT_` intencional en tres, así las lee `sender.ts`) |
 
 ## Advertencias
 
 - `terraform apply` falla sin `SOPS_AGE_KEY_FILE` apuntando a la age key privada.
 - La IP del nodo y el kubeconfig cambian con recreaciones de la instancia; no versionar `k0sctl.yaml`/`kubeconfig` (gitignored).
-- `app-of-apps/pro/secrets.enc` tiene `registry_password` y las variables SMTP vacías: rellenarlas con `sops` antes de que la fase 3/4 publique imagen privada o necesite enviar email.
+- `app-of-apps/pro/secrets.enc` está completo; si se rellena o edita con `sops`, conservar el **formato JSON** (`sops` lo reescribe en el formato de entrada; verificar con `head -c 5` → `{`).

@@ -86,7 +86,7 @@ module "oci-k0s" {
       environment = "pro"
       source = {
         repo_url        = "git@github.com:CallePuzzle/villajilguero-oci-services.git"
-        target_revision = "30-migrar-jilguedev"
+        target_revision = "main"
         path            = "jilguedev/app-of-apps"
         plugin          = "tanka-sops"
       }
