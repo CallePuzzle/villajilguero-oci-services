@@ -1,0 +1,15 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "pro"
+  },
+  "spec": {
+    "namespace": "argocd",
+    "contextNames": [
+      "k0s-cluster"
+    ],
+    "resourceDefaults": {},
+    "expectVersions": {}
+  }
+}

@@ -1,109 +1,66 @@
 # AGENTS.md - jilguedev
 
-Entorno de desarrollo para Nextcloud All-in-One (AIO) desplegado en una instancia OCI Ubuntu con Docker rootless.
+Entorno de desarrollo: **cluster k0s de un nodo** en OCI Ubuntu, gestionado con Terraform (infra) + ArgoCD (GitOps).
+
+> **Migración completada en la rama `30-migrar-jilguedev`** (issue #30): el stack Nextcloud AIO + Docker rootless + Caddy + Ansible fue eliminado (`ansible/` ya no existe en este entorno; solo en el historial git). Pendiente al merge: devolver `target_revision` del AppProject a `main` y quitar el caveat de rama del `AGENTS.md` raíz. Para el stack AIO (producción) ver `jilgue/AGENTS.md`.
 
 ## Arquitectura
 
-- **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`).
-- **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`.
-- **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
+- **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) via `terraform-module-k0s-oci` con `enable_k0s = true`. k0sctl instala el cluster (controller+worker sin taints, k0s 1.36.x) usando `k0sctl.yaml` (generado, gitignored) y deja `kubeconfig` (gitignored).
+- **Ingress/TLS**: Traefik (Helm extension de k0s), ingressClass `nginx`. El LB de OCI va en **passthrough TCP** (`https_backend_port = 443`): el TLS lo termina Cloudflare (proxy, modo "Full" sin strict) y Traefik usa certificado self-signed. **Sin cert-manager**.
+- **Storage**: `enable_openebs = true` → storage class `openebs-hostpath`, requerida por CloudNativePG.
+- **ArgoCD**: `https://argocd.callepuzzle.com` con SSO GitHub vía Dex (org `CallePuzzle`, admin local deshabilitado). Plugin CMP **tanka-sops** (sidecar en el repoServer con `SOPS_AGE_KEY`). Los values se generan desde `argocd-values.yaml.tmpl` + `secrets.enc.yaml`.
+- **AppProject `app-of-apps-pro`**: apunta a `jilguedev/app-of-apps` en este repo (auto-sync; mientras dure la rama, `target_revision = "30-migrar-jilguedev"` en `main.tf` — devolver a `main` en el merge), con plugin CMP `tanka-sops` y `ENVIRONMENT=pro`. Repos permitidos: `y-tu-que-compras` y el chart de CloudNativePG; namespaces de destino `callepuzzle-pro` + `cnpg-system` (con whitelists cluster-scope para CRDs, RBAC y webhooks de CNPG).
+- **GitOps (`app-of-apps/`)**: proyecto Tanka único con entorno `pro/` (`main.jsonnet` + `spec.json` + `secrets.enc`). `lib/main.libsonnet(secrets, projects)` genera la infraestructura compartida (el `Namespace` `callepuzzle-pro`, el Secret `token-registry` para pull de ghcr.io y la `Application` `cnpg-pro` con el chart `cloudnative-pg` 0.29.0 en ns `cnpg-system`, antes que las apps) y un par `Repository` + `Application` por cada entrada de la lista `projects`, mediante la plantilla `lib/project.libsonnet`. **Añadir un proyecto = una entrada en `pro/main.jsonnet`** (`name`, `repoUrl`, `deployKey`, `environment`; defaults `targetRevision: main`, `autoSync: true`, `prune: false`) y, si el repo es privado, su deploy key en `pro/secrets.enc`. path `deploy`, plugin `tanka-sops`; autoSync **sin** prune y **sin** finalizer: el CI de la app es dueño de los manifiestos y borrar la Application no borra lo desplegado.
+- **Pin de la lib**: `jsonnet-lib-manifests` va fijado a `2da3fe2` (el mismo de Zytera): genera `path` + `plugin tanka-sops` + `ENVIRONMENT` desde `values.environment`; versiones posteriores hacen `path` y `plugin` excluyentes. Tras cambiar dependencias: `cd jilguedev/app-of-apps && jb install`.
 
-## Operaciones comunes
+## Despliegue
 
-### Despliegue inicial
 ```bash
 cd jilguedev
+export SOPS_AGE_KEY_FILE=$HOME/projects/age-key.txt   # requerido por el provider carlpett/sops
 terraform apply
-cd ansible
-poetry install
-poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ```
 
-### Acceso
-- **Nextcloud**: `https://aio.callepuzzle.com`
-- **AIO Admin**: `https://<ip-publica>:8080` (restringido via UFW; usar túnel SSH si es necesario)
+- State remoto en Terraform Cloud (org `villajilguero`, workspace `jilguedev`) — requiere `terraform login`.
+- El módulo Terraform vive fuera del repo: `source = "../../terraform-module-k0s-oci/"` → checkout hermano (`~/projects/terraform-module-k0s-oci`).
+- Secrets SOPS/age: `credentials.enc.json` (API OCI) y `secrets.enc.yaml` (`github_client_id/secret`, `sops_age_key`, `infra_repo_deploy_key`).
+- Provider OCI en **~> 9.0** (lock a 9.11.0): el módulo v1.4.1 exige >= 9.0 y la 8.12.0 rechazaba `versioning = "Suspended"` en el create del bucket.
+- Outputs: `public_ip`, `private_ip` y `lb_public_ip` (destino de los registros DNS en Cloudflare, proxied).
 
-### Backup y restauración
-AIO incluye BorgBackup integrado. Se gestiona desde la UI de AIO (`https://localhost:8080`).
-
-**Backup local**: El rol de Ansible crea por defecto `/home/ubuntu/nextcloud-aio-backups` y lo monta en el mastercontainer. En la UI de AIO se debe configurar ese mismo path como ubicación de backup para que Borg cree el repositorio en `/home/ubuntu/nextcloud-aio-backups/borg`.
-
-**Backup automatizado**: Un systemd user timer ejecuta diariamente a las 02:00:
-```bash
-systemctl --user status nextcloud-aio-backup.timer
-```
-
-El script ejecuta:
-```bash
-docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-mastercontainer /daily-backup.sh
-```
-
-**Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
-
-**Restauración**: Solo se necesita el backup de Borg + la contraseña de encriptación. Se restaura completo desde la UI de AIO.
-
-**Test de verificación del backup de producción (B2)**: Para comprobar que la copia sincronizada desde Backblaze B2 es válida y contiene los datos esperados, hay dos opciones:
-
-1. **Molecule (recomendado)**: ejecuta la verificación dentro de un contenedor Podman desechable:
+### Render local del app-of-apps
 
 ```bash
-cd jilguedev/ansible/roles/nextcloud_aio
-# Asegúrate de tener el backup en tmp/nextcloud-aio-borg-backup/
-# y la passphrase en .borg.txt (ambos ignorados por git)
-poetry run molecule test --scenario-name b2-restore
+cd jilguedev/app-of-apps
+jb install                                              # solo la primera vez (vendor/, gitignored)
+export SOPS_AGE_KEY_FILE=$HOME/projects/age-key.txt
+sops -d --output-type json pro/secrets.enc > pro/secrets.json   # gitignored
+tk show pro --dangerous-allow-redirect
+rm pro/secrets.json
 ```
 
-2. **Playbook local**: para comprobaciones rápidas sin contenedor:
+## Backups (ytqc-db → OCI Object Storage, barman)
 
-```bash
-cd jilguedev/ansible
-poetry run ansible-playbook playbooks/verify-b2-backup.yml
-```
+- Bucket `jilguedev-db-backups`, **versioning Disabled**: la API de OCI no soporta reglas lifecycle sobre versiones no actuales (acumularían delete markers sin purga); la retención de barman es el único mecanismo de borrado.
+- Terraform crea el bucket porque **barman 3.16+ ya no crea buckets automáticamente**.
+- Usuario IAM dedicado `jilguedev-db-backup` (nunca la Customer Secret Key del usuario admin). Policy con scope `in tenancy` (el compartment es la tenancy) filtrando por bucket.
+- La Customer Secret Key **solo es legible en la creación** (queda en el tfstate de TFC). Outputs `db_backup_access_key_id` / `db_backup_secret_access_key` (sensitive) → credenciales S3 para los secrets de Tanka (`jilguedev/app-of-apps/pro/secrets.enc`).
 
-Ambos test:
-- Ejecutan `borg check` sobre el repositorio local.
-- Listan los archives disponibles.
-- Extraen el dump SQL de PostgreSQL.
-- Verifican que los usuarios `cesar` y `nuria` existen en `oc_users`.
+### Secrets de Tanka (`app-of-apps/pro/secrets.enc`)
 
-### Actualizaciones
-- **Automáticas**: El timer de backup incluye `AUTOMATIC_UPDATES=1`, por lo que AIO se actualiza automáticamente durante el backup diario.
-- **Manuales**: Desde la UI de AIO (`https://localhost:8080`) o ejecutando el script de backup manualmente.
+SOPS/age (mismo recipient que `secrets.enc.yaml`), **formato JSON obligatorio** (el CMP descifra con `--input-type json`; guardarlo como YAML rompe el render del app-of-apps, pasó en `ff5d998`). El CMP lo desencripta a `pro/secrets.json` (gitignored) en cada `generate`. Claves:
 
-### Seguridad
-- **UFW**: Solo 22 (SSH), 80 (HTTP) y 443 (HTTPS) están abiertos públicamente. El puerto 8080 (AIO admin) está denegado desde fuera.
-- **fail2ban**: Protege SSH contra fuerza bruta.
-- **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
-- **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
-- **Log driver**: Docker usa `log-driver: local` para evitar crecimiento descontrolado de logs.
-- **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configurado para Caddy en host network.
+| Clave | Consumidor | Estado |
+|---|---|---|
+| `registry_password` | Secret `token-registry` (pull de ghcr.io) | PAT `read:packages` de ghcr.io |
+| `y_tu_que_compras_deploy_key` | `Repository` de Argo CD (clone SSH de la app) | deploy key read-only `argocd-jilguedev-ytqc` (copia privada en `~/projects/ytqc-argocd-ed25519`) |
+| `DB_APP_PASSWORD` | rol app de `ytqc-db` (fase 3, en el `deploy/` de la app) | generado aleatorio |
+| `BACKUP_ACCESS_KEY_ID` / `BACKUP_ACCESS_SECRET_KEY` | backups barman de `ytqc-db` (fase 3) | outputs de Terraform |
+| `BETTER_AUTH_SECRET` | Secret de la app (fase 3) | generado aleatorio |
+| `SMTP_HOST`, `SMPT_AUTH_USER`, `SMPT_AUTH_PASS`, `SMPT_SENDER` | envío OTP por email | **No viven aquí**: están en el `deploy/pro/secrets.enc` del repo `y-tu-que-compras` (todas rellenas; typo `SMPT_` intencional en tres, así las lee `sender.ts`) |
 
-### Variables importantes
-Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles en `group_vars/docker_servers.yml`:
+## Advertencias
 
-| Variable | Descripción | Default |
-|----------|-------------|---------|
-| `nextcloud_aio_domain` | Dominio público de Nextcloud | `aio.callepuzzle.com` |
-| `nextcloud_aio_datadir` | Path host para datos (vacío = volumen Docker) | `""` |
-| `nextcloud_aio_memory_limit` | Límite de memoria PHP | `2048M` |
-| `nextcloud_aio_upload_limit` | Límite de subida | `16G` |
-| `nextcloud_aio_max_time` | Tiempo máx. de ejecución PHP | `3600` |
-| `nextcloud_aio_borg_retention_policy` | Retención de backups Borg | `--keep-within=7d --keep-weekly=4 --keep-monthly=6` |
-| `nextcloud_aio_log_level` | Nivel de log de AIO | `warn` |
-| `nextcloud_aio_disable_backup_section` | Ocultar sección de backup en la UI de AIO | `false` |
-| `nextcloud_aio_backup_dir` | Directorio host para backups locales de Borg | `/home/ubuntu/nextcloud-aio-backups` |
-| `nextcloud_aio_backup_enabled` | Habilitar timer de backup diario | `true` |
-| `nextcloud_aio_backup_time` | Hora del backup diario | `02:00` |
-| `nextcloud_aio_enable_ufw` | Habilitar UFW | `true` |
-| `nextcloud_aio_enable_fail2ban` | Habilitar fail2ban | `true` |
-| `nextcloud_aio_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
-
-### Docker daemon
-El daemon rootless se configura con:
-- `log-driver: local`
-- `live-restore: false` (rootless no soporta live-restore)
-
-### Advertencias
-- `NEXTCLOUD_DATADIR` **solo puede configurarse antes del primer arranque** de Nextcloud. Cambiarlo después requiere recrear la instalación.
-- El puerto 8080 (AIO admin) está denegado en UFW y no tiene regla de ingress en la Security List de OCI, por lo que solo es accesible via túnel SSH (`ssh -L 8080:localhost:8080 ubuntu@<ip>`).
+- `terraform apply` falla sin `SOPS_AGE_KEY_FILE` apuntando a la age key privada.
+- La IP del nodo y el kubeconfig cambian con recreaciones de la instancia; no versionar `k0sctl.yaml`/`kubeconfig` (gitignored).
+- `app-of-apps/pro/secrets.enc` está completo; si se rellena o edita con `sops`, conservar el **formato JSON** (`sops` lo reescribe en el formato de entrada; verificar con `head -c 5` → `{`).
