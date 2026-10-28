@@ -26,6 +26,25 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.5"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.5"
+    }
+  }
+}
+
+# Rangos publicados por Cloudflare (https://www.cloudflare.com/ips/), leídos en
+# cada plan para seguir sus rotaciones sin mantener la lista a mano. Solo IPv4:
+# el LB solo tiene IP pública IPv4 (registro A), así que Cloudflare conecta al
+# origen siempre por IPv4.
+data "http" "cloudflare_ips" {
+  url = "https://api.cloudflare.com/client/v4/ips"
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200 && jsondecode(self.response_body).success && length(jsondecode(self.response_body).result.ipv4_cidrs) > 0
+      error_message = "No se pudo obtener la lista de rangos IPv4 de Cloudflare."
+    }
   }
 }
 
@@ -53,7 +72,7 @@ provider "oci" {
 }
 
 module "oci-k0s" {
-  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.4.3"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.5.0"
   # source = "../../terraform-module-k0s-oci/"
 
   compartment_id = local.tenancy_ocid
@@ -73,6 +92,11 @@ module "oci-k0s" {
   # Passthrough TCP: el backend del listener 443 es Traefik (websecure), no un
   # puerto HTTP del LB.
   https_backend_port = 443
+
+  # Solo Cloudflare puede llegar al LB (80/443): sin esto, quien conozca la IP
+  # del LB va directo a Traefik y elige el cf-connecting-ip que usa el rate
+  # limit por IP de las apps (issue #32).
+  lb_allowed_cidrs = jsondecode(data.http.cloudflare_ips.response_body).result.ipv4_cidrs
 
   argocd_host = local.argocd_host
 
