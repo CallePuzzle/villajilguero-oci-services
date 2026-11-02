@@ -48,6 +48,12 @@ rm pro/secrets.json
 - Usuario IAM dedicado `jilguedev-db-backup` (nunca la Customer Secret Key del usuario admin). Policy con scope `in tenancy` (el compartment es la tenancy) filtrando por bucket.
 - La Customer Secret Key **solo es legible en la creación** (queda en el tfstate de TFC). Outputs `db_backup_access_key_id` / `db_backup_secret_access_key` (sensitive) → credenciales S3 para los secrets de Tanka (`jilguedev/app-of-apps/pro/secrets.enc`).
 
+### DR real (2026-11-02): restauración de `ytqc-db` tras la recreación de la instancia
+
+- La instancia se recreó por accidente (ver Advertencias) y el cluster volvió vacío; ArgoCD re-desplegó todo y el Cluster CNPG arrancó con `initdb` sin datos. Restauración vía `bootstrap.recovery` en el deploy de la app (`y-tu-que-compras`, PRs #194/#195): `recoveryTarget.backupID` anclado al último backup pre-desastre (`20261102T033000`) + replay de todo el WAL disponible. La recuperación corrió al **borrar el Cluster vacío** y dejar que ArgoCD lo recree con el manifiesto nuevo (el bootstrap se ignora sobre un Cluster ya existente; el syncPolicy `automated` no tiene `selfHeal`, así que el sync tras borrar hay que dispararlo a mano, p. ej. con `kubectl patch application ... -p '{"operation":{"sync":{"revision":"main"}}}'`).
+- El `serverName` barman del cluster restaurado es **`ytqc-db-restored`** (carpeta aparte en el bucket): el archivado de un cluster recién bootstrapado exige destino vacío (`barman-cloud-check-wal-archive` falla con «Expected empty archive») y así el histórico pre-desastre (`ytqc-db`) queda intacto como fuente de futuras restauraciones.
+- Hallazgo importante: el WAL archiving del cluster antiguo se quedó **parado hacia las 18:52 UTC**, más de una hora antes de perder la instancia (19:55): esa ventana de datos es irrecuperable y nadie lo detectó (no hay alerta de retraso de archivado). Pendiente: monitorizar `pg_stat_archiver` (`last_archived_time` envejeciendo o `failed_count` creciendo) en las apps con CNPG.
+
 ### Secrets de Tanka (`app-of-apps/pro/secrets.enc`)
 
 SOPS/age (mismo recipient que `secrets.enc.yaml`), **formato JSON obligatorio** (el CMP descifra con `--input-type json`; guardarlo como YAML rompe el render del app-of-apps, pasó en `ff5d998`). El CMP lo desencripta a `pro/secrets.json` (gitignored) en cada `generate`. Claves:
@@ -63,6 +69,7 @@ SOPS/age (mismo recipient que `secrets.enc.yaml`), **formato JSON obligatorio** 
 
 ## Advertencias
 
+- **NUNCA ejecutar `terraform apply` si el plan recrea la instancia** (`oci_core_instance` con destroy/replace), bajo ningún concepto, **ni aunque César lo autorice en el momento**: el cluster (etcd, Traefik, los PV `openebs-hostpath` de `ytqc-db`) vive en el disco local de la instancia y una recreación lo pierde todo. Ocurrió el 2026-11-02 con el salto v1.4.3 → v1.6.0 del módulo: `oracle-terraform-modules/compute-instance/oci` iba sin pin de versión en el registry, un `terraform init` resolvió una versión upstream nueva y forzó el replace; desde v1.7.0 el submódulo está vendorizado con `ignore_changes = [metadata, source_details]`, pero la protección no sustituye a leer el plan. Si el plan toca la instancia en rojo, parar e investigar. Solo si la recreación fuera estrictamente inevitable: asumir la pérdida de datos → `k0sctl apply --config k0sctl.yaml` para re-bootstrapear, `k0sctl kubeconfig` para regenerar el kubeconfig, y restaurar `ytqc-db` desde barman (`jilguedev-db-backups`).
 - `terraform apply` falla sin `SOPS_AGE_KEY_FILE` apuntando a la age key privada.
 - La IP del nodo y el kubeconfig cambian con recreaciones de la instancia; no versionar `k0sctl.yaml`/`kubeconfig` (gitignored).
 - `app-of-apps/pro/secrets.enc` está completo; si se rellena o edita con `sops`, conservar el **formato JSON** (`sops` lo reescribe en el formato de entrada; verificar con `head -c 5` → `{`).
