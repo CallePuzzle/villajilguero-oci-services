@@ -43,7 +43,7 @@ provider "oci" {
 }
 
 module "oci-aio" {
-  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.6.0"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.7.2"
   # source = "../../terraform-module-k0s-oci/"
 
   name = "aio"
