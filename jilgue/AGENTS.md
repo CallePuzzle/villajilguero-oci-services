@@ -4,7 +4,7 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 
 ## Arquitectura
 
-- **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`).
+- **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.6.0` en `main.tf`).
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
 - **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
@@ -79,6 +79,7 @@ Ambos test:
 
 ### Seguridad
 - **UFW**: Solo 22 (SSH), 80 (HTTP) y 443 (HTTPS) están abiertos públicamente. El puerto 8080 (AIO admin) está denegado desde fuera.
+- **Security List OCI** (módulo ≥ v1.6.0, efectivo tras el siguiente `terraform apply`): el 22 (SSH) solo admite la IP pública `/32` de quien ejecuta terraform (data source `http` contra `ipv4.icanhazip.com`; si cambias de red, el siguiente apply actualiza la regla). El 80/443 siguen abiertos a `0.0.0.0/0` via `additional_security_list_rules` (tráfico web necesario para Nextcloud).
 - **fail2ban**: Protege SSH contra fuerza bruta.
 - **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
 - **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
