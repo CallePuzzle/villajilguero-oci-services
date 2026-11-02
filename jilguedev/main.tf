@@ -72,7 +72,7 @@ provider "oci" {
 }
 
 module "oci-k0s" {
-  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.5.0"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.6.0"
   # source = "../../terraform-module-k0s-oci/"
 
   compartment_id = local.tenancy_ocid

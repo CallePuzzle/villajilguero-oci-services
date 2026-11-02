@@ -17,8 +17,10 @@ terraform {
       version = "1.1.1"
     }
     oci = {
-      source  = "oracle/oci"
-      version = "8.12.0"
+      source = "oracle/oci"
+      # ~> 9.0: requerido por el módulo v1.6.0 (>= 9.0.0). jilguedev ya corre
+      # 9.x en producción.
+      version = "~> 9.0"
     }
     local = {
       source  = "hashicorp/local"
@@ -41,7 +43,8 @@ provider "oci" {
 }
 
 module "oci-aio" {
-  source = "../../terraform-module-k0s-oci/"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.6.0"
+  # source = "../../terraform-module-k0s-oci/"
 
   name = "aio"
 

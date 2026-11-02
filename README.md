@@ -15,7 +15,7 @@ Infrastructure-as-code project that deploys and manages Nextcloud All-in-One (AI
 
 | Tool | Purpose | Version |
 |------|---------|---------|
-| Terraform | OCI instance provisioning (`terraform-module-k0s-oci` with `enable_k0s = false`) | ~1.5+ |
+| Terraform | OCI instance provisioning (`terraform-module-k0s-oci` with `enable_k0s = false`, pinned to `v1.6.0`) | 1.6+ |
 | Ansible | Server configuration & AIO deployment | 13.6.0+ |
 | Poetry | Python dependency management & virtualenv | 2.3.4+ |
 | Molecule | Role testing (functional + B2 restore scenarios) | - |
