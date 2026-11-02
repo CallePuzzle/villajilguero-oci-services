@@ -43,7 +43,7 @@ provider "oci" {
 }
 
 module "oci-aio" {
-  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.6.0"
+  source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.7.2"
   # source = "../../terraform-module-k0s-oci/"
 
   name = "aio"
@@ -53,6 +53,12 @@ module "oci-aio" {
   enable_k0s = false
 
   ssh_public_key = file("${var.ssh_private_key_path}.pub")
+
+  # Passthrough TCP: Caddy termina TLS en la instancia (host network, 443).
+  # Sin este pin, el default del módulo (80, para TLS in-cluster) movería el
+  # backend y el health check del listener 443 al puerto 80 y provocaría un
+  # redirect loop de Caddy a través del LB.
+  https_backend_port = 443
 
   additional_security_list_rules = [
     {

@@ -25,7 +25,7 @@ terraform apply
 ```
 
 - State remoto en Terraform Cloud (org `villajilguero`, workspace `jilguedev`) — requiere `terraform login`.
-- El módulo Terraform está pineado por **tag git**: `source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.6.0"`. Actualizarlo = mergear el release upstream (semantic-release publica el tag) y subir el `ref` aquí. El checkout hermano (`~/projects/terraform-module-k0s-oci`) es solo para desarrollar el módulo.
+- El módulo Terraform está pineado por **tag git**: `source = "git::https://github.com/CallePuzzle/terraform-module-k0s-oci?ref=v1.7.2"`. Actualizarlo = mergear el release upstream (semantic-release publica el tag) y subir el `ref` aquí. El checkout hermano (`~/projects/terraform-module-k0s-oci`) es solo para desarrollar el módulo. Desde v1.7.0 el submódulo `compute-instance` está vendorizado con `ignore_changes = [metadata, source_details]`: una actualización del módulo **nunca reemplaza la instancia** (cloud-init e imagen solo aplican en el primer boot).
 - Secrets SOPS/age: `credentials.enc.json` (API OCI) y `secrets.enc.yaml` (`github_client_id/secret`, `sops_age_key`, `infra_repo_deploy_key`).
 - Provider OCI en **~> 9.0** (lock a 9.11.0): el módulo v1.4.1 exige >= 9.0 y la 8.12.0 rechazaba `versioning = "Suspended"` en el create del bucket.
 - Outputs: `public_ip`, `private_ip` y `lb_public_ip` (destino de los registros DNS en Cloudflare, proxied).
