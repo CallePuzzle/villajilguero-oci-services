@@ -54,6 +54,12 @@ module "oci-aio" {
 
   ssh_public_key = file("${var.ssh_private_key_path}.pub")
 
+  # Passthrough TCP: Caddy termina TLS en la instancia (host network, 443).
+  # Sin este pin, el default del módulo (80, para TLS in-cluster) movería el
+  # backend y el health check del listener 443 al puerto 80 y provocaría un
+  # redirect loop de Caddy a través del LB.
+  https_backend_port = 443
+
   additional_security_list_rules = [
     {
       protocol = "6"
