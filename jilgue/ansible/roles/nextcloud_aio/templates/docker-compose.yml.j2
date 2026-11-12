@@ -40,30 +40,8 @@ services:
       retries: 3
       start_period: 60s
 
-  caddy:
-    image: caddy:alpine
-    restart: always
-    container_name: caddy
-    network_mode: host
-    volumes:
-      - {{ nextcloud_aio_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_config:/config
-      - caddy_data:/data
-    logging:
-      driver: "local"
-    healthcheck:
-      # wget probes fail: Caddy 308-redirects to HTTPS and BusyBox wget breaks
-      # on the TLS handshake, so check the TLS listener via TCP instead
-      test: ["CMD", "nc", "-z", "127.0.0.1", "443"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
+# The reverse proxy (caddy) lives in its own compose project since #38
+# (role `caddy`), which reuses the caddy_config / caddy_data volumes.
 volumes:
   nextcloud_aio_mastercontainer:
     name: nextcloud_aio_mastercontainer
-  caddy_config:
-    name: caddy_config
-  caddy_data:
-    name: caddy_data
