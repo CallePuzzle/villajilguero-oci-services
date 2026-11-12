@@ -5,9 +5,9 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 ## Arquitectura
 
 - **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.7.2` en `main.tf`). El módulo **nunca reemplaza la instancia viva** (submódulo `compute-instance` vendorizado con `ignore_changes = [metadata, source_details]`): cloud-init e imagen solo aplican en el primer boot; los parches van por unattended-upgrades.
-- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2), `caddy` (reverse proxy con compose propio y snippets de sitio por app) y `nextcloud_aio` (app). El playbook los ejecuta en ese orden.
+- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2), `caddy` (reverse proxy con compose propio y snippets de sitio por app), `nextcloud_aio` y `wallabag` (apps). El playbook los ejecuta en ese orden.
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`) y reinicia el contenedor `caddy` si cambia.
+- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`, `wallabag.caddy`) y reinicia el contenedor `caddy` si cambia.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
 
 ## Operaciones comunes
@@ -24,6 +24,7 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ### Acceso
 - **Nextcloud**: `https://aio.callepuzzle.com`
 - **AIO Admin**: `https://<ip-publica>:8080` (restringido via UFW; usar túnel SSH si es necesario)
+- **Wallabag** (deshabilitada por defecto: poner `wallabag_enabled: true` en group_vars para desplegarla): `https://wallabag.callepuzzle.com`. El login por defecto de la imagen es `wallabag` / `wallabag`: **cambia la contraseña tras el primer acceso** (Configuración → Mi cuenta) y crea usuarios individuales; el registro público ya viene desactivado.
 
 ### Backup y restauración
 AIO incluye BorgBackup integrado. Se gestiona desde la UI de AIO (`https://localhost:8080`).
@@ -45,6 +46,13 @@ docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-masterc
 /usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
 ```
 El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI lo instala automáticamente el rol `docker_host` (`docker_host_b2_cli_enabled`), pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
+
+**Backup de Wallabag** (cuando `wallabag_enabled: true`): un cron diario (por defecto a las 04:00) toma un snapshot consistente de la BD SQLite con la API de backup online (`sqlite3 <wallabag_data_path>/db/wallabag.sqlite ".backup ..."`) en `wallabag_backup_dir`, y un segundo cron (04:30) sincroniza ese directorio al bucket B2 (`wallabag_b2_bucket`, subcarpeta `wallabag/` del bucket de AIO):
+```bash
+/usr/bin/sqlite3 /home/ubuntu/wallabag/data/db/wallabag.sqlite ".backup '/home/ubuntu/wallabag-backups/wallabag.sqlite'"
+/usr/local/bin/b2 sync /home/ubuntu/wallabag-backups b2://callepuzzle-nextcloud-borg-backup/wallabag/
+```
+Los horarios van entre el backup Borg de AIO (02:00) y su sincronización B2 (05:00) para que los dos procesos `b2` no se solapen. El snapshot se sobreescribe a diario; `b2 sync` conserva en el bucket las versiones anteriores de los ficheros cambiados. Logs en `/home/ubuntu/wallabag-sqlite-backup.log` y `/home/ubuntu/wallabag-b2-sync.log`. Comparte la misma deuda del CLI `b2` sin autorizar (ver Advertencias). Las imágenes de las entradas no van al backup (volumen nombrado, contenido re-descargable); la BD sí incluye los artículos, usuarios y ajustes.
 
 **Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
 
@@ -90,7 +98,7 @@ Ambos test:
 
 ### Variables importantes
 
-Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml`; las de `nextcloud_aio` en `ansible/roles/nextcloud_aio/defaults/main.yml`. Todas son sobrescribibles en `group_vars/docker_servers.yml`.
+Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml`; las de `caddy` en `ansible/roles/caddy/defaults/main.yml`; las de `nextcloud_aio` en `ansible/roles/nextcloud_aio/defaults/main.yml`; las de `wallabag` en `ansible/roles/wallabag/defaults/main.yml`. Todas son sobrescribibles en `group_vars/docker_servers.yml`.
 
 **Rol `docker_host`** (base del host):
 
@@ -134,6 +142,28 @@ El rol deja `caddy_sites_path` y `caddy_container_name` como facts para los role
 | `nextcloud_aio_b2_sync_time` | Hora de la sincronización a B2 | `05:00` |
 | `nextcloud_aio_b2_bucket` | Bucket B2 destino de la sincronización | `b2://callepuzzle-nextcloud-borg-backup/` |
 
+**Rol `wallabag`** (app, deshabilitada por defecto):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `wallabag_enabled` | Desplegar la app y sus crons de backup | `false` |
+| `wallabag_compose_path` | Directorio del proyecto compose | `/home/ubuntu/wallabag` |
+| `wallabag_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
+| `wallabag_domain` | Dominio público de Wallabag | `wallabag.callepuzzle.com` |
+| `wallabag_image` | Imagen oficial multi-arch (arm64 nativo), pinneada a la tag minor | `wallabag/wallabag:2.6` |
+| `wallabag_port` | Puerto en loopback que proxyfíca Caddy (8080 y 11000 ya ocupados) | `8081` |
+| `wallabag_ip_binding` | IP donde se publica el puerto (no exponer salvo tests) | `127.0.0.1` |
+| `wallabag_locale` | Idioma de la interfaz | `en` |
+| `wallabag_secret` | Secreto de tokens de la app (vacío = default público de la imagen) | `""` |
+| `wallabag_data_path` | Bind mount del host para la BD SQLite | `{{ wallabag_compose_path }}/data` |
+| `wallabag_backup_dir` | Directorio local del snapshot SQLite que se sincroniza a B2 | `/home/ubuntu/wallabag-backups` |
+| `wallabag_backup_file` | Nombre del fichero snapshot | `wallabag.sqlite` |
+| `wallabag_backup_enabled` | Habilitar el snapshot SQLite diario | `true` |
+| `wallabag_backup_time` | Hora del snapshot SQLite | `04:00` |
+| `wallabag_b2_sync_enabled` | Habilitar la sincronización diaria del snapshot a B2 (requiere `docker_host_b2_cli_enabled`) | `true` |
+| `wallabag_b2_sync_time` | Hora de la sincronización a B2 | `04:30` |
+| `wallabag_b2_bucket` | Bucket B2 destino (subcarpeta del bucket de AIO) | `b2://callepuzzle-nextcloud-borg-backup/wallabag/` |
+
 ### Docker daemon
 El daemon rootless se configura con:
 - `log-driver: local`
@@ -142,4 +172,5 @@ El daemon rootless se configura con:
 ### Advertencias
 - `NEXTCLOUD_DATADIR` **solo puede configurarse antes del primer arranque** de Nextcloud. Cambiarlo después requiere recrear la instalación.
 - El puerto 8080 (AIO admin) está denegado en UFW y no tiene regla de ingress en la Security List de OCI, por lo que solo es accesible via túnel SSH (`ssh -L 8080:localhost:8080 ubuntu@<ip>`).
-- `nextcloud_aio_b2_sync_enabled` requiere que el CLI `b2` esté autorizado manualmente en el host (`b2 account authorize`) antes de que el cron pueda sincronizar; las credenciales aún no se gestionan vía SOPS.
+- `nextcloud_aio_b2_sync_enabled` requiere que el CLI `b2` esté autorizado manualmente en el host (`b2 account authorize`) antes de que el cron pueda sincronizar; las credenciales aún no se gestionan vía SOPS. Lo mismo aplica al cron de Wallabag (`wallabag_b2_sync_enabled`).
+- El login por defecto de Wallabag es `wallabag` / `wallabag`: **cambia la contraseña tras el primer acceso** (Configuración → Mi cuenta); el registro público ya viene desactivado de fábrica. El primer arranque puede tardar unos minutos (inicializa la BD y compila assets).

@@ -5,9 +5,9 @@ Production environment for Nextcloud All-in-One (AIO) deployed on an OCI Ubuntu 
 ## Architecture
 
 - **OCI Instance**: Ubuntu 24.04 (VM.Standard.A1.Flex) provisioned via Terraform (`terraform-module-k0s-oci` with `enable_k0s = false`).
-- **Ansible roles**: `docker_host` (host base: rootless Docker, OS hardening, Backblaze B2 CLI), `caddy` (reverse proxy with its own compose project and per-app site snippets) and `nextcloud_aio` (app). The playbook runs them in that order.
+- **Ansible roles**: `docker_host` (host base: rootless Docker, OS hardening, Backblaze B2 CLI), `caddy` (reverse proxy with its own compose project and per-app site snippets), and the apps `nextcloud_aio` and `wallabag` (disabled by default). The playbook runs them in that order.
 - **Docker**: Rootless mode with socket at `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy in `network_mode: host` listening on 80/443 (TCP+UDP for HTTP/3) and proxying to `localhost:11000`. Its compose project and base Caddyfile are managed by the `caddy` role; each app role writes its site snippet into the sites directory (e.g. `nextcloud.caddy`) and restarts the `caddy` container when it changes.
+- **Reverse Proxy**: Caddy in `network_mode: host` listening on 80/443 (TCP+UDP for HTTP/3) and proxying to `localhost:11000`. Its compose project and base Caddyfile are managed by the `caddy` role; each app role writes its site snippet into the sites directory (e.g. `nextcloud.caddy`, `wallabag.caddy`) and restarts the `caddy` container when it changes.
 - **Nextcloud AIO**: Mastercontainer in `network_mode: bridge` with the admin interface restricted to `127.0.0.1:8080`.
 
 ## Initial Deployment
@@ -27,10 +27,11 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
   ```bash
   ssh -L 8080:localhost:8080 ubuntu@<public-ip>
   ```
+- **Wallabag** (not deployed until `wallabag_enabled: true` in group_vars): `https://wallabag.callepuzzle.com`. The image's default login is `wallabag` / `wallabag` — **change the password after the first login** (Config → My account) and create individual users; public registration ships disabled.
 
 ## Configuration
 
-Default values are defined in `ansible/roles/docker_host/defaults/main.yml`, `ansible/roles/caddy/defaults/main.yml` and `ansible/roles/nextcloud_aio/defaults/main.yml`, and can be overridden in `ansible/group_vars/docker_servers.yml`.
+Default values are defined in `ansible/roles/docker_host/defaults/main.yml`, `ansible/roles/caddy/defaults/main.yml`, `ansible/roles/nextcloud_aio/defaults/main.yml` and `ansible/roles/wallabag/defaults/main.yml`, and can be overridden in `ansible/group_vars/docker_servers.yml`.
 
 **`docker_host` role** (host base):
 
@@ -72,11 +73,33 @@ The role exports `caddy_sites_path` and `caddy_container_name` as facts for the 
 | `nextcloud_aio_b2_sync_time` | Daily B2 sync time | `05:00` |
 | `nextcloud_aio_b2_bucket` | Destination B2 bucket for the sync | `b2://callepuzzle-nextcloud-borg-backup/` |
 
+**`wallabag` role** (app, disabled by default):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `wallabag_enabled` | Deploy the app and its backup crons | `false` |
+| `wallabag_compose_path` | Wallabag compose project directory | `/home/ubuntu/wallabag` |
+| `wallabag_compose_file` | Compose file name | `docker-compose.yml` |
+| `wallabag_domain` | Public domain for Wallabag | `wallabag.callepuzzle.com` |
+| `wallabag_image` | Official multi-arch image (native arm64), pinned to the minor tag | `wallabag/wallabag:2.6` |
+| `wallabag_port` | Loopback port Caddy proxies to (8080 and 11000 are already taken) | `8081` |
+| `wallabag_ip_binding` | IP the port binds to (don't expose outside tests) | `127.0.0.1` |
+| `wallabag_locale` | UI language | `en` |
+| `wallabag_secret` | App secret for security tokens (empty = image's public default) | `""` |
+| `wallabag_data_path` | Host bind mount holding the SQLite DB | `{{ wallabag_compose_path }}/data` |
+| `wallabag_backup_dir` | Local directory for the SQLite snapshot synced to B2 | `/home/ubuntu/wallabag-backups` |
+| `wallabag_backup_file` | Snapshot file name | `wallabag.sqlite` |
+| `wallabag_backup_enabled` | Enable the daily SQLite snapshot | `true` |
+| `wallabag_backup_time` | Daily SQLite snapshot time | `04:00` |
+| `wallabag_b2_sync_enabled` | Enable daily sync of the snapshot to Backblaze B2 (requires `docker_host_b2_cli_enabled`) | `true` |
+| `wallabag_b2_sync_time` | Daily B2 sync time | `04:30` |
+| `wallabag_b2_bucket` | Destination B2 bucket (subfolder of the AIO bucket) | `b2://callepuzzle-nextcloud-borg-backup/wallabag/` |
+
 > ⚠️ `NEXTCLOUD_DATADIR` can only be set **before the first startup**. Changing it later requires recreating the installation.
 
 ## Docker Compose Stack
 
-The Ansible roles generate two compose projects:
+The Ansible roles generate these compose projects (the wallabag one only when `wallabag_enabled: true`):
 
 ### nextcloud-aio (role `nextcloud_aio`)
 
@@ -92,6 +115,13 @@ The Ansible roles generate two compose projects:
 - Image: `caddy:alpine`
 - Runs in `network_mode: host`, serving on ports 80/443
 - Mounts the base Caddyfile and the sites directory (read-only) from its own compose project, plus the named volumes `caddy_config` / `caddy_data` (the same ones the pre-#38 AIO compose used, so Let's Encrypt certificates carry over untouched)
+
+### wallabag (role `wallabag`, only when `wallabag_enabled: true`)
+
+#### wallabag
+- Image: `wallabag/wallabag:2.6` (official, multi-arch with native arm64)
+- Exposes `127.0.0.1:8081` only; Caddy proxies the site to it
+- SQLite DB on a host bind mount (`wallabag_data_path` → `/var/www/wallabag/data`, so the DB is at `<path>/db/wallabag.sqlite`); entry images in the named volume `wallabag_images` (re-downloadable content, not backed up)
 
 ### Base Caddyfile (`caddy` role)
 
@@ -118,6 +148,15 @@ aio.callepuzzle.com {
 
 The role restarts the `caddy` container whenever the snippet changes (Caddy only reads its config at startup).
 
+### Wallabag site snippet (role `wallabag`, written to `sites/wallabag.caddy`)
+
+```
+wallabag.callepuzzle.com {
+  header Strict-Transport-Security max-age=31536000
+  reverse_proxy localhost:8081
+}
+```
+
 ## Systemd Services
 
 ### docker-compose-caddy.service
@@ -132,6 +171,13 @@ User-scoped systemd service that starts the compose stack after the Docker socke
 ```bash
 systemctl --user status docker-compose-nextcloud
 journalctl --user -u docker-compose-nextcloud
+```
+
+### docker-compose-wallabag.service
+User-scoped systemd service that starts the Wallabag compose stack after the Docker socket is available:
+```bash
+systemctl --user status docker-compose-wallabag
+journalctl --user -u docker-compose-wallabag
 ```
 
 ### nextcloud-aio-backup.timer
@@ -151,6 +197,20 @@ Daily cron (default 05:00, three hours after the Borg backup) that syncs `nextcl
 /usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
 ```
 Logs go to `/home/ubuntu/nextcloud-aio-b2-sync.log`. The `b2` CLI is installed automatically by the `docker_host` role (`docker_host_b2_cli_enabled`) but must be authorized manually and out-of-band (`b2 account authorize`) since credentials aren't yet managed via SOPS.
+
+### Wallabag backup (cron, only when `wallabag_enabled: true`)
+Two daily crons staggered between the AIO Borg backup (02:00) and its B2 sync (05:00) so the two `b2` processes never overlap:
+
+- **04:00** — consistent SQLite snapshot via the online backup API:
+  ```bash
+  /usr/bin/sqlite3 /home/ubuntu/wallabag/data/db/wallabag.sqlite ".backup '/home/ubuntu/wallabag-backups/wallabag.sqlite'"
+  ```
+- **04:30** — sync of the snapshot directory to the existing B2 bucket (subfolder `wallabag/`):
+  ```bash
+  /usr/local/bin/b2 sync /home/ubuntu/wallabag-backups b2://callepuzzle-nextcloud-borg-backup/wallabag/
+  ```
+
+The snapshot file is overwritten daily; `b2 sync` keeps previous versions of changed files on the bucket, so history survives without timestamped local copies. Logs go to `/home/ubuntu/wallabag-sqlite-backup.log` and `/home/ubuntu/wallabag-b2-sync.log`. Shares the same `b2 account authorize` out-of-band requirement as the AIO sync above.
 
 ## Backup and Restore
 
@@ -254,14 +314,23 @@ jilgue/
 │       │   │   ├── docker-compose.yml.j2
 │       │   │   └── docker-compose.service.j2
 │       │   └── README.md
-│       └── nextcloud_aio/
-│           ├── defaults/main.yml    # Default role variables
-│           ├── tasks/main.yml       # Role tasks
-│           ├── molecule/            # Molecule scenarios (functional test, B2 restore)
-│           └── templates/
-│           ├── docker-compose.yml.j2
-│           ├── nextcloud.caddy.j2
-│           ├── docker-compose.service.j2
-│           ├── nextcloud-aio-backup.service.j2
-│           └── nextcloud-aio-backup.timer.j2
+│       ├── nextcloud_aio/
+│       │   ├── defaults/main.yml    # Default role variables
+│       │   ├── tasks/main.yml       # Role tasks
+│       │   ├── molecule/            # Molecule scenarios (functional test, B2 restore)
+│       │   ├── templates/
+│       │   │   ├── docker-compose.yml.j2
+│       │   │   ├── nextcloud.caddy.j2
+│       │   │   ├── docker-compose.service.j2
+│       │   │   ├── nextcloud-aio-backup.service.j2
+│       │   │   └── nextcloud-aio-backup.timer.j2
+│       │   └── README.md
+│       └── wallabag/                # App: SQLite + daily B2 backup (disabled by default)
+│           ├── defaults/main.yml
+│           ├── tasks/main.yml       # Guarded by wallabag_enabled
+│           ├── templates/
+│           │   ├── docker-compose.yml.j2
+│           │   ├── wallabag.caddy.j2
+│           │   └── docker-compose.service.j2
+│           └── README.md
 ```

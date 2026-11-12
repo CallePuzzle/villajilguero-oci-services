@@ -1,0 +1,38 @@
+name: wallabag
+services:
+  wallabag:
+    image: {{ wallabag_image }}
+    restart: always
+    container_name: wallabag
+    network_mode: bridge
+    ports:
+      # Loopback only: Caddy (host network) proxies the site to this port
+      - "{{ wallabag_ip_binding }}:{{ wallabag_port }}:80"
+    volumes:
+      # SQLite DB + app data on the host; the backup cron snapshots
+      # {{ wallabag_data_path }}/db/wallabag.sqlite with sqlite3 .backup
+      - {{ wallabag_data_path }}:/var/www/wallabag/data
+      # Entry images stay in a named volume instead of a bind mount: under
+      # rootless Docker the container's "nobody" maps to a host subuid that
+      # cannot write into a directory owned by docker_host_user (the image
+      # entrypoint chowns data/db itself, but nothing does it for the
+      # images dir). A named volume is initialized from the image, so it is
+      # already owned by the user the app runs as. Not covered by the B2
+      # backup: entry images are re-downloadable content.
+      - wallabag_images:/var/www/wallabag/web/assets/images
+    environment:
+      SYMFONY__ENV__DATABASE_DRIVER: pdo_sqlite
+      SYMFONY__ENV__DOMAIN_NAME: https://{{ wallabag_domain }}
+      SYMFONY__ENV__LOCALE: {{ wallabag_locale }}
+{% if wallabag_secret | length > 0 %}
+      SYMFONY__ENV__SECRET: "{{ wallabag_secret }}"
+{% endif %}
+    logging:
+      driver: "local"
+    # No compose-level healthcheck: the image ships its own (curl against
+    # /api/info on localhost).
+
+# Explicit name so recreations keep the same volume (and its contents).
+volumes:
+  wallabag_images:
+    name: wallabag_images
