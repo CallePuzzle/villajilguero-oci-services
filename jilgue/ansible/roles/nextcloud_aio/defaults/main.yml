@@ -1,7 +1,11 @@
 ---
 nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
 nextcloud_aio_compose_file: docker-compose.yml
-docker_user: ubuntu
+
+# User that runs rootless Docker and owns the compose project. Host-level,
+# installed by the docker_host role; the default is duplicated here so this
+# role stays runnable standalone. Override in group_vars to change everywhere.
+docker_host_user: ubuntu
 nextcloud_aio_domain: aio.callepuzzle.com
 
 # Nextcloud AIO configuration
@@ -17,11 +21,6 @@ nextcloud_aio_mastercontainer_ip_binding: 127.0.0.1
 # instead of requesting one from Let's Encrypt. Only for test scenarios
 # where nextcloud_aio_domain isn't a real, internet-reachable domain.
 nextcloud_aio_caddy_tls_internal: false
-
-# Rootless Docker storage driver override. Leave empty to use Docker's default
-# (native overlayfs). Set to "fuse-overlayfs" in nested/containerized test
-# environments where native overlay mounts are not available.
-nextcloud_aio_docker_storage_driver: ""
 
 # Data directory (must be set BEFORE first install; changing later causes data loss)
 # Set to empty string "" to use the default Docker volume
@@ -47,19 +46,14 @@ nextcloud_aio_disable_backup_section: false
 # Local directory used as Borg backup target (mounted into the mastercontainer)
 nextcloud_aio_backup_dir: /home/ubuntu/nextcloud-aio-backups
 
-# OS hardening
-nextcloud_aio_enable_ufw: true
-nextcloud_aio_enable_fail2ban: true
-nextcloud_aio_enable_unattended_upgrades: true
-
 # Automated daily backup + updates via systemd user timer
 nextcloud_aio_backup_enabled: true
 nextcloud_aio_backup_time: "02:00"
 
 # Sync the local Borg backup to Backblaze B2 daily via cron, after the backup above finishes.
-# Requires the `b2` CLI to already be authorized on the host (`b2 account authorize`),
-# which is a manual, out-of-band step for now (credentials aren't yet managed via SOPS).
+# Requires the `b2` CLI installed by the docker_host role and authorized on the
+# host (`b2 account authorize`), which is a manual, out-of-band step for now
+# (credentials aren't yet managed via SOPS).
 nextcloud_aio_b2_sync_enabled: true
 nextcloud_aio_b2_sync_time: "05:00"
-nextcloud_aio_b2_version: "4.7.1"
 nextcloud_aio_b2_bucket: "b2://callepuzzle-nextcloud-borg-backup/"

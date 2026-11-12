@@ -5,6 +5,7 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 ## Arquitectura
 
 - **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.7.2` en `main.tf`). El módulo **nunca reemplaza la instancia viva** (submódulo `compute-instance` vendorizado con `ignore_changes = [metadata, source_details]`): cloud-init e imagen solo aplican en el primer boot; los parches van por unattended-upgrades.
+- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2) y `nextcloud_aio` (app). El playbook los ejecuta en ese orden; `caddy` se insertará entre ambos (tarea #38).
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
 - **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
@@ -43,7 +44,7 @@ docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-masterc
 ```bash
 /usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
 ```
-El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI se instala automáticamente por Ansible, pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
+El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI lo instala automáticamente el rol `docker_host` (`docker_host_b2_cli_enabled`), pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
 
 **Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
 
@@ -82,12 +83,28 @@ Ambos test:
 - **Security List OCI** (módulo ≥ v1.6.0, efectivo tras el siguiente `terraform apply`): el 22 (SSH) solo admite la IP pública `/32` de quien ejecuta terraform (data source `http` contra `ipv4.icanhazip.com`; si cambias de red, el siguiente apply actualiza la regla). El 80/443 siguen abiertos a `0.0.0.0/0` via `additional_security_list_rules` (tráfico web necesario para Nextcloud).
 - **fail2ban**: Protege SSH contra fuerza bruta.
 - **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
+- UFW, fail2ban y unattended-upgrades los instala y configura el rol `docker_host` (conmutadores `docker_host_enable_*`).
 - **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
 - **Log driver**: Docker usa `log-driver: local` para evitar crecimiento descontrolado de logs.
 - **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configurado para Caddy en host network.
 
 ### Variables importantes
-Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles en `group_vars/docker_servers.yml`:
+
+Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml`; las de `nextcloud_aio` en `ansible/roles/nextcloud_aio/defaults/main.yml`. Todas son sobrescribibles en `group_vars/docker_servers.yml`.
+
+**Rol `docker_host`** (base del host):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `docker_host_user` | Usuario que ejecuta Docker rootless (compartido con los roles de app) | `ubuntu` |
+| `docker_host_storage_driver` | Storage driver de Docker (vacío = default; `fuse-overlayfs` en entornos anidados) | `""` |
+| `docker_host_enable_ufw` | Habilitar UFW | `true` |
+| `docker_host_enable_fail2ban` | Habilitar fail2ban | `true` |
+| `docker_host_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
+| `docker_host_b2_cli_enabled` | Instalar el CLI de Backblaze B2 (lo usan los crons de las apps) | `true` |
+| `docker_host_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
+
+**Rol `nextcloud_aio`** (app):
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
@@ -102,13 +119,9 @@ Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles e
 | `nextcloud_aio_backup_dir` | Directorio host para backups locales de Borg | `/home/ubuntu/nextcloud-aio-backups` |
 | `nextcloud_aio_backup_enabled` | Habilitar timer de backup diario | `true` |
 | `nextcloud_aio_backup_time` | Hora del backup diario | `02:00` |
-| `nextcloud_aio_b2_sync_enabled` | Habilitar sincronización diaria del backup a Backblaze B2 | `true` |
+| `nextcloud_aio_b2_sync_enabled` | Habilitar sincronización diaria del backup a Backblaze B2 (requiere `docker_host_b2_cli_enabled`) | `true` |
 | `nextcloud_aio_b2_sync_time` | Hora de la sincronización a B2 | `05:00` |
-| `nextcloud_aio_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
 | `nextcloud_aio_b2_bucket` | Bucket B2 destino de la sincronización | `b2://callepuzzle-nextcloud-borg-backup/` |
-| `nextcloud_aio_enable_ufw` | Habilitar UFW | `true` |
-| `nextcloud_aio_enable_fail2ban` | Habilitar fail2ban | `true` |
-| `nextcloud_aio_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
 
 ### Docker daemon
 El daemon rootless se configura con:

@@ -97,7 +97,7 @@ all:
         ${module.oci-aio.public_ip}:
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ${var.ssh_private_key_path}
-          docker_user: ubuntu
+          docker_host_user: ubuntu
   EOT
 
   filename = "${path.module}/ansible/inventory/oci_docker.yml"

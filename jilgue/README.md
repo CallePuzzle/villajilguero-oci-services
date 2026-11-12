@@ -5,6 +5,7 @@ Production environment for Nextcloud All-in-One (AIO) deployed on an OCI Ubuntu 
 ## Architecture
 
 - **OCI Instance**: Ubuntu 24.04 (VM.Standard.A1.Flex) provisioned via Terraform (`terraform-module-k0s-oci` with `enable_k0s = false`).
+- **Ansible roles**: `docker_host` (host base: rootless Docker, OS hardening, Backblaze B2 CLI) and `nextcloud_aio` (app). The playbook runs them in that order; `caddy` will be inserted between them (task #38).
 - **Docker**: Rootless mode with socket at `/run/user/<uid>/docker.sock`.
 - **Reverse Proxy**: Caddy in `network_mode: host` listening on 80/443 (TCP+UDP for HTTP/3) and proxying to `localhost:11000`.
 - **Nextcloud AIO**: Mastercontainer in `network_mode: bridge` with the admin interface restricted to `127.0.0.1:8080`.
@@ -29,7 +30,21 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 
 ## Configuration
 
-Default values are defined in `ansible/roles/nextcloud_aio/defaults/main.yml` and can be overridden in `ansible/group_vars/docker_servers.yml`.
+Default values are defined in `ansible/roles/docker_host/defaults/main.yml` and `ansible/roles/nextcloud_aio/defaults/main.yml`, and can be overridden in `ansible/group_vars/docker_servers.yml`.
+
+**`docker_host` role** (host base):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `docker_host_user` | User that runs rootless Docker (shared with app roles) | `ubuntu` |
+| `docker_host_storage_driver` | Docker storage driver (empty = default; `fuse-overlayfs` in nested environments) | `""` |
+| `docker_host_enable_ufw` | Enable UFW | `true` |
+| `docker_host_enable_fail2ban` | Enable fail2ban | `true` |
+| `docker_host_enable_unattended_upgrades` | Enable unattended-upgrades | `true` |
+| `docker_host_b2_cli_enabled` | Install the Backblaze B2 CLI (used by app cron jobs) | `true` |
+| `docker_host_b2_version` | Backblaze B2 CLI version to install | `4.7.1` |
+
+**`nextcloud_aio` role** (app):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -42,13 +57,9 @@ Default values are defined in `ansible/roles/nextcloud_aio/defaults/main.yml` an
 | `nextcloud_aio_log_level` | AIO log level | `warn` |
 | `nextcloud_aio_backup_enabled` | Enable backup timer | `true` |
 | `nextcloud_aio_backup_time` | Daily backup time | `02:00` |
-| `nextcloud_aio_b2_sync_enabled` | Enable daily sync of the Borg backup to Backblaze B2 | `true` |
+| `nextcloud_aio_b2_sync_enabled` | Enable daily sync of the Borg backup to Backblaze B2 (requires `docker_host_b2_cli_enabled`) | `true` |
 | `nextcloud_aio_b2_sync_time` | Daily B2 sync time | `05:00` |
-| `nextcloud_aio_b2_version` | Backblaze B2 CLI version to install | `4.7.1` |
 | `nextcloud_aio_b2_bucket` | Destination B2 bucket for the sync | `b2://callepuzzle-nextcloud-borg-backup/` |
-| `nextcloud_aio_enable_ufw` | Enable UFW | `true` |
-| `nextcloud_aio_enable_fail2ban` | Enable fail2ban | `true` |
-| `nextcloud_aio_enable_unattended_upgrades` | Enable unattended-upgrades | `true` |
 
 > ⚠️ `NEXTCLOUD_DATADIR` can only be set **before the first startup**. Changing it later requires recreating the installation.
 
@@ -103,7 +114,7 @@ Daily cron (default 05:00, three hours after the Borg backup) that syncs `nextcl
 ```bash
 /usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
 ```
-Logs go to `/home/ubuntu/nextcloud-aio-b2-sync.log`. The `b2` CLI is installed automatically by Ansible but must be authorized manually and out-of-band (`b2 account authorize`) since credentials aren't yet managed via SOPS.
+Logs go to `/home/ubuntu/nextcloud-aio-b2-sync.log`. The `b2` CLI is installed automatically by the `docker_host` role (`docker_host_b2_cli_enabled`) but must be authorized manually and out-of-band (`b2 account authorize`) since credentials aren't yet managed via SOPS.
 
 ## Backup and Restore
 
@@ -191,11 +202,16 @@ jilgue/
 │   │   └── docker_servers.yml       # Host variables
 │   ├── playbooks/
 │   │   └── verify-b2-backup.yml     # Local B2 backup verification playbook
-│   └── roles/nextcloud_aio/
-│       ├── defaults/main.yml        # Default role variables
-│       ├── tasks/main.yml           # Role tasks
-│       ├── molecule/                # Molecule scenarios (functional test, B2 restore)
-│       └── templates/
+│   └── roles/
+│       ├── docker_host/             # Host base: rootless Docker, hardening, B2 CLI
+│       │   ├── defaults/main.yml
+│       │   ├── tasks/main.yml
+│       │   └── README.md
+│       └── nextcloud_aio/
+│           ├── defaults/main.yml    # Default role variables
+│           ├── tasks/main.yml       # Role tasks
+│           ├── molecule/            # Molecule scenarios (functional test, B2 restore)
+│           └── templates/
 │           ├── docker-compose.yml.j2
 │           ├── Caddyfile.j2
 │           ├── docker-compose.service.j2
