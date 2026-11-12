@@ -1,0 +1,72 @@
+---
+- name: Verify the Wallabag functional test environment
+  hosts: all
+  gather_facts: false
+  vars:
+    # Must match the converge playbook (play vars don't persist between them)
+    wallabag_domain: wallabag.callepuzzle.com
+  tasks:
+    - name: Get the test user UID for the rootless Docker socket
+      ansible.builtin.command: id -u {{ docker_test_user }}
+      register: test_user_uid
+      changed_when: false
+
+    # The healthcheck probes the TLS listener with nc, so this proves the
+    # caddy compose project is up and serving the site (the placeholder
+    # in the base Caddyfile alone doesn't listen on 443).
+    - name: Check that the caddy container is healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format {{ '{{.State.Health.Status}}' }} caddy
+      environment:
+        DOCKER_HOST: "unix:///run/user/{{ test_user_uid.stdout }}/docker.sock"
+      register: caddy_health
+      until: caddy_health.stdout | trim == "healthy"
+      retries: 12
+      delay: 10
+      changed_when: false
+
+    # First boot initializes the SQLite DB and compiles assets, which can
+    # take several minutes; the image ships its own healthcheck (curl
+    # against /api/info), so "healthy" means the app is really answering.
+    - name: Check that the wallabag container is healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format {{ '{{.State.Health.Status}}' }} wallabag
+      environment:
+        DOCKER_HOST: "unix:///run/user/{{ test_user_uid.stdout }}/docker.sock"
+      register: wallabag_health
+      until: wallabag_health.stdout | trim == "healthy"
+      retries: 60
+      delay: 10
+      changed_when: false
+
+    # End-to-end: Caddy terminates TLS (internal, self-signed cert for the
+    # scenario's fake domain, hence -k; --resolve pins the domain to
+    # loopback without real DNS) and proxies to the Wallabag login page.
+    - name: Check that the Wallabag login is reachable through Caddy
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk --resolve {{ wallabag_domain }}:443:127.0.0.1
+          https://{{ wallabag_domain }}/login -o /dev/null -w '%{http_code}'
+      register: wallabag_login
+      until: wallabag_login.stdout == '200'
+      retries: 6
+      delay: 10
+      changed_when: false
+
+    # Backup crons: the SQLite snapshot doesn't depend on the B2 CLI and
+    # stays enabled at its default; the B2 sync cron must be absent with
+    # wallabag_b2_sync_enabled: false in converge.
+    - name: Read the test user's crontab
+      ansible.builtin.command: crontab -l -u {{ docker_test_user }}
+      register: wallabag_crontab
+      changed_when: false
+
+    - name: Assert the SQLite snapshot cron is present
+      ansible.builtin.assert:
+        that:
+          - "'Consistent Wallabag SQLite snapshot' in wallabag_crontab.stdout"
+
+    - name: Assert the B2 sync cron is absent (disabled in this scenario)
+      ansible.builtin.assert:
+        that:
+          - "'Sync Wallabag SQLite backup to Backblaze B2' not in wallabag_crontab.stdout"

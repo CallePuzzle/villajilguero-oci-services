@@ -1,0 +1,8 @@
+---
+all:
+  hosts:
+    wallabag-functional-test:
+      ansible_host: wallabag-functional-test
+      ansible_connection: podman
+      container_image: docker.io/geerlingguy/docker-ubuntu2204-ansible:latest
+      docker_test_user: wallatest

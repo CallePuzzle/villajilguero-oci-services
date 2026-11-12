@@ -41,6 +41,9 @@ Non-obvious requirements:
 cd jilgue/ansible/roles/nextcloud_aio
 poetry run molecule test --scenario-name aio-functional   # full AIO run in podman
 poetry run molecule test --scenario-name b2-restore       # verify B2 backup restore
+
+cd jilgue/ansible/roles/wallabag
+poetry run molecule test --scenario-name wallabag-functional  # Wallabag end-to-end through Caddy
 ```
 
 - Molecule scenarios use `driver: default` and drive **rootful podman** through the scenario's `files/sudo-podman` wrapper (`ANSIBLE_PODMAN_EXECUTABLE`, needs passwordless `sudo podman`) — the nested rootless Docker inside AIO requires the outer test container to be created by rootful podman. Deps (molecule 25.x, `molecule-plugins[podman]`, pytest-testinfra, ansible 13.x, Python >=3.12) come from `jilgue/ansible/pyproject.toml` — run via `poetry`.

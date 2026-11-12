@@ -14,10 +14,18 @@ docker_host_user: ubuntu
 
 wallabag_domain: wallabag.callepuzzle.com
 
+# Serve the Wallabag site with a locally-generated self-signed certificate
+# instead of requesting one from Let's Encrypt. Only for test scenarios
+# where wallabag_domain isn't a real, internet-reachable domain.
+# Configures the site snippet this role writes for the caddy role.
+wallabag_caddy_tls_internal: false
+
 # Official multi-arch image (amd64/arm64 built natively, no emulation; the
-# host is aarch64). Pinned to the minor tag for predictable upgrades: each
-# wallabag release also refreshes the 2.6 / 2 / latest tags.
-wallabag_image: wallabag/wallabag:2.6
+# host is aarch64). Pinned to a concrete patch tag: upstream only publishes
+# version tags plus `latest` (there is no floating 2.6 / 2 tag to pin to),
+# so upgrades are a deliberate bump of this default (or a group_vars
+# override).
+wallabag_image: wallabag/wallabag:2.6.15.1
 
 # Loopback-only port Caddy proxies the site to. 8080 (AIO mastercontainer
 # admin) and 11000 (AIO apache) are already taken on this host.

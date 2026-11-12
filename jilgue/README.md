@@ -81,7 +81,7 @@ The role exports `caddy_sites_path` and `caddy_container_name` as facts for the 
 | `wallabag_compose_path` | Wallabag compose project directory | `/home/ubuntu/wallabag` |
 | `wallabag_compose_file` | Compose file name | `docker-compose.yml` |
 | `wallabag_domain` | Public domain for Wallabag | `wallabag.callepuzzle.com` |
-| `wallabag_image` | Official multi-arch image (native arm64), pinned to the minor tag | `wallabag/wallabag:2.6` |
+| `wallabag_image` | Official multi-arch image (native arm64), pinned to a concrete version tag | `wallabag/wallabag:2.6.15.1` |
 | `wallabag_port` | Loopback port Caddy proxies to (8080 and 11000 are already taken) | `8081` |
 | `wallabag_ip_binding` | IP the port binds to (don't expose outside tests) | `127.0.0.1` |
 | `wallabag_locale` | UI language | `en` |
@@ -119,7 +119,7 @@ The Ansible roles generate these compose projects (the wallabag one only when `w
 ### wallabag (role `wallabag`, only when `wallabag_enabled: true`)
 
 #### wallabag
-- Image: `wallabag/wallabag:2.6` (official, multi-arch with native arm64)
+- Image: `wallabag/wallabag:2.6.15.1` (official, multi-arch with native arm64)
 - Exposes `127.0.0.1:8081` only; Caddy proxies the site to it
 - SQLite DB on a host bind mount (`wallabag_data_path` → `/var/www/wallabag/data`, so the DB is at `<path>/db/wallabag.sqlite`); entry images in the named volume `wallabag_images` (re-downloadable content, not backed up)
 
