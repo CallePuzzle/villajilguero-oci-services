@@ -1,0 +1,23 @@
+---
+# User that runs rootless Docker and owns every app's compose project.
+# Shared with the app roles (nextcloud_aio, wallabag, ...): each role
+# duplicates this default so it stays runnable standalone; override it in
+# group_vars to change it everywhere at once.
+docker_host_user: ubuntu
+
+# Rootless Docker storage driver override. Leave empty to use Docker's default
+# (native overlayfs). Set to "fuse-overlayfs" in nested/containerized test
+# environments where native overlay mounts are not available.
+docker_host_storage_driver: ""
+
+# OS hardening
+docker_host_enable_ufw: true
+docker_host_enable_fail2ban: true
+docker_host_enable_unattended_upgrades: true
+
+# Install the Backblaze B2 CLI. It's only a host-level dependency: the sync
+# cron jobs that use it belong to each app role (nextcloud_aio, wallabag).
+# After install, `b2` still needs a manual `b2 account authorize` on the host
+# until credentials are managed via SOPS.
+docker_host_b2_cli_enabled: true
+docker_host_b2_version: "4.7.1"

@@ -9,7 +9,7 @@ The old Kubernetes/ArgoCD stack (`jsonnet/`, `k0s/`, `manifests/`, `test/`) was 
 Two sibling directories: `jilgue/` (production Nextcloud AIO) and `jilguedev/` (k0s GitOps cluster).
 
 - `jilgue/` is a self-contained Terraform root + `ansible/` project (Poetry env). `jilguedev/` is a Terraform root + Tanka project (`app-of-apps/`, jsonnet-bundler). Each has its own **`AGENTS.md` (Spanish)** with detailed ops docs — read it before touching the role or running operations against an env.
-- The Ansible role `nextcloud_aio` lives only in `jilgue/` now (the near-identical jilguedev copy was deleted in the k0s migration; both live on in git history).
+- The Ansible roles `nextcloud_aio` and `docker_host` live only in `jilgue/` now (the near-identical jilguedev copy was deleted in the k0s migration; both live on in git history).
 
 ## Deploy flow (per env)
 

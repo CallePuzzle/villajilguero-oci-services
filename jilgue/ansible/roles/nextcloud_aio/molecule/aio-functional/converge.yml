@@ -47,12 +47,12 @@
       args:
         creates: "{{ backup_dir_path }}/config"
 
-- name: Deploy the nextcloud_aio role
+- name: Deploy the docker_host and nextcloud_aio roles
   hosts: all
   gather_facts: false
   vars:
     ansible_user: "{{ docker_test_user }}"
-    docker_user: "{{ docker_test_user }}"
+    docker_host_user: "{{ docker_test_user }}"
     nextcloud_aio_compose_path: "/home/{{ docker_test_user }}/nextcloud-aio"
     nextcloud_aio_backup_dir: "{{ backup_dir_path }}"
     # Matches the domain baked into the restored production config
@@ -73,14 +73,18 @@
     nextcloud_aio_apache_ip_binding: "0.0.0.0"
     # Native overlayfs mounts aren't available this deep in nested
     # containers; fuse-overlayfs is the supported fallback.
-    nextcloud_aio_docker_storage_driver: fuse-overlayfs
+    docker_host_storage_driver: fuse-overlayfs
     # Hardening is orthogonal to what this scenario validates (a working
     # AIO instance you can restore into) and adds failure modes specific
     # to running nested inside a container.
-    nextcloud_aio_enable_ufw: false
-    nextcloud_aio_enable_fail2ban: false
-    nextcloud_aio_enable_unattended_upgrades: false
+    docker_host_enable_ufw: false
+    docker_host_enable_fail2ban: false
+    docker_host_enable_unattended_upgrades: false
+    # The B2 CLI download is orthogonal to what this scenario validates too.
+    docker_host_b2_cli_enabled: false
     nextcloud_aio_backup_enabled: false
     nextcloud_aio_b2_sync_enabled: false
   roles:
+    # caddy (#38) will slot in between these two roles
+    - docker_host
     - nextcloud_aio
