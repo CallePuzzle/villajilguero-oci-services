@@ -1,0 +1,69 @@
+---
+# Wallabag is disabled by default: flip this to true (e.g. in group_vars)
+# to deploy the app and its backup crons. When false, none of this role's
+# tasks run.
+wallabag_enabled: false
+
+wallabag_compose_path: /home/ubuntu/wallabag
+wallabag_compose_file: docker-compose.yml
+
+# User that runs rootless Docker and owns the compose project. Host-level,
+# installed by the docker_host role; the default is duplicated here so this
+# role stays runnable standalone. Override in group_vars to change everywhere.
+docker_host_user: ubuntu
+
+wallabag_domain: wallabag.callepuzzle.com
+
+# Official multi-arch image (amd64/arm64 built natively, no emulation; the
+# host is aarch64). Pinned to the minor tag for predictable upgrades: each
+# wallabag release also refreshes the 2.6 / 2 / latest tags.
+wallabag_image: wallabag/wallabag:2.6
+
+# Loopback-only port Caddy proxies the site to. 8080 (AIO mastercontainer
+# admin) and 11000 (AIO apache) are already taken on this host.
+wallabag_port: 8081
+
+# IP the service port binds to. Keep at 127.0.0.1 in production; only
+# override to expose it (e.g. in test scenarios).
+wallabag_ip_binding: 127.0.0.1
+
+wallabag_locale: en
+
+# App secret used to generate security tokens. Empty = the upstream default,
+# which is public knowledge; set a real one (openssl rand -hex 32) for a
+# public instance. Emitted into the compose only when non-empty.
+wallabag_secret: ""
+
+# Site snippet location for the Caddy reverse proxy (caddy role) and the
+# container to restart when the snippet changes. The caddy role exports
+# both as facts with the same values when it runs first in the play;
+# replicate the defaults here so this role stays runnable standalone.
+caddy_sites_path: /home/ubuntu/caddy/sites
+caddy_container_name: caddy
+
+# Host directory bind-mounted at /var/www/wallabag/data: the SQLite DB
+# lands on the host at <wallabag_data_path>/db/wallabag.sqlite, where the
+# backup cron can snapshot it with sqlite3. (Entry images live in a named
+# volume instead: see the compose template for why.)
+wallabag_data_path: "{{ wallabag_compose_path }}/data"
+
+# Local directory holding the daily SQLite snapshot (.backup) that the B2
+# sync then uploads.
+wallabag_backup_dir: /home/ubuntu/wallabag-backups
+wallabag_backup_file: wallabag.sqlite
+
+# Daily consistent snapshot of the SQLite DB via `sqlite3 .backup`, followed
+# by a B2 sync of the snapshot directory. Times are staggered to sit between
+# the AIO Borg backup (02:00) and its B2 sync (05:00) so the two b2
+# processes never overlap.
+wallabag_backup_enabled: true
+wallabag_backup_time: "04:00"
+
+# Sync the SQLite snapshot to Backblaze B2 daily via cron, half an hour after
+# the snapshot above. Requires the `b2` CLI installed by the docker_host role
+# and authorized on the host (`b2 account authorize`), which is a manual,
+# out-of-band step for now (credentials aren't yet managed via SOPS).
+wallabag_b2_sync_enabled: true
+wallabag_b2_sync_time: "04:30"
+# Subfolder of the existing bucket nextcloud_aio_b2_bucket already uses.
+wallabag_b2_bucket: "b2://callepuzzle-nextcloud-borg-backup/wallabag/"

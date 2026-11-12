@@ -8,3 +8,6 @@
     - caddy
     # App: mastercontainer, backup timer, B2 sync cron
     - nextcloud_aio
+    # App: Wallabag with SQLite + daily B2 backup (#39). Inert until
+    # wallabag_enabled is flipped to true in group_vars.
+    - wallabag
