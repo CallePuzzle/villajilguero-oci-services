@@ -17,10 +17,18 @@ nextcloud_aio_skip_domain_validation: true
 # Keep at 127.0.0.1 in production; only override to expose it (e.g. in test scenarios).
 nextcloud_aio_mastercontainer_ip_binding: 127.0.0.1
 
-# Serve Caddy's site with a locally-generated self-signed certificate
+# Serve the Nextcloud site with a locally-generated self-signed certificate
 # instead of requesting one from Let's Encrypt. Only for test scenarios
 # where nextcloud_aio_domain isn't a real, internet-reachable domain.
+# Configures the site snippet this role writes for the caddy role.
 nextcloud_aio_caddy_tls_internal: false
+
+# Site snippet location for the Caddy reverse proxy (caddy role) and the
+# container to restart when the snippet changes. The caddy role exports
+# both as facts with the same values when it runs first in the play;
+# replicate the defaults here so this role stays runnable standalone.
+caddy_sites_path: /home/ubuntu/caddy/sites
+caddy_container_name: caddy
 
 # Data directory (must be set BEFORE first install; changing later causes data loss)
 # Set to empty string "" to use the default Docker volume

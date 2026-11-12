@@ -1,0 +1,31 @@
+name: caddy
+services:
+  caddy:
+    image: {{ caddy_image }}
+    restart: always
+    container_name: {{ caddy_container_name }}
+    network_mode: host
+    volumes:
+      - {{ caddy_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - {{ caddy_sites_path }}:/etc/caddy/sites:ro
+      - caddy_config:/config
+      - caddy_data:/data
+    logging:
+      driver: "local"
+    healthcheck:
+      # wget probes fail: Caddy 308-redirects to HTTPS and BusyBox wget breaks
+      # on the TLS handshake, so check the TLS listener via TCP instead
+      test: ["CMD", "nc", "-z", "127.0.0.1", "443"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Same named volumes the old compose inside nextcloud-aio used (pre-#38),
+# so the existing Let's Encrypt certificates and Caddy config are reused
+# as-is when the proxy moves to this project: no certificate re-issuance.
+volumes:
+  caddy_config:
+    name: caddy_config
+  caddy_data:
+    name: caddy_data

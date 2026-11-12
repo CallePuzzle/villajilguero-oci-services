@@ -1,0 +1,21 @@
+---
+caddy_compose_path: /home/ubuntu/caddy
+caddy_compose_file: docker-compose.yml
+
+# Host directory whose *.caddy files the base Caddyfile imports; each app
+# role writes one snippet there (e.g. nextcloud.caddy) and restarts the
+# proxy when it changes. Exported as a fact for the app roles (they
+# replicate these defaults to stay runnable standalone).
+caddy_sites_path: "{{ caddy_compose_path }}/sites"
+
+# Container name of the proxy; app roles restart it after changing a
+# snippet (`docker restart {{ caddy_container_name }}`). Exported as a
+# fact as well.
+caddy_container_name: caddy
+
+caddy_image: caddy:alpine
+
+# User that runs rootless Docker and owns the compose project. Host-level,
+# installed by the docker_host role; the default is duplicated here so this
+# role stays runnable standalone. Override in group_vars to change everywhere.
+docker_host_user: ubuntu

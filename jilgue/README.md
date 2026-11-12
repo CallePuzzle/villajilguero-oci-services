@@ -5,9 +5,9 @@ Production environment for Nextcloud All-in-One (AIO) deployed on an OCI Ubuntu 
 ## Architecture
 
 - **OCI Instance**: Ubuntu 24.04 (VM.Standard.A1.Flex) provisioned via Terraform (`terraform-module-k0s-oci` with `enable_k0s = false`).
-- **Ansible roles**: `docker_host` (host base: rootless Docker, OS hardening, Backblaze B2 CLI) and `nextcloud_aio` (app). The playbook runs them in that order; `caddy` will be inserted between them (task #38).
+- **Ansible roles**: `docker_host` (host base: rootless Docker, OS hardening, Backblaze B2 CLI), `caddy` (reverse proxy with its own compose project and per-app site snippets) and `nextcloud_aio` (app). The playbook runs them in that order.
 - **Docker**: Rootless mode with socket at `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy in `network_mode: host` listening on 80/443 (TCP+UDP for HTTP/3) and proxying to `localhost:11000`.
+- **Reverse Proxy**: Caddy in `network_mode: host` listening on 80/443 (TCP+UDP for HTTP/3) and proxying to `localhost:11000`. Its compose project and base Caddyfile are managed by the `caddy` role; each app role writes its site snippet into the sites directory (e.g. `nextcloud.caddy`) and restarts the `caddy` container when it changes.
 - **Nextcloud AIO**: Mastercontainer in `network_mode: bridge` with the admin interface restricted to `127.0.0.1:8080`.
 
 ## Initial Deployment
@@ -30,7 +30,7 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 
 ## Configuration
 
-Default values are defined in `ansible/roles/docker_host/defaults/main.yml` and `ansible/roles/nextcloud_aio/defaults/main.yml`, and can be overridden in `ansible/group_vars/docker_servers.yml`.
+Default values are defined in `ansible/roles/docker_host/defaults/main.yml`, `ansible/roles/caddy/defaults/main.yml` and `ansible/roles/nextcloud_aio/defaults/main.yml`, and can be overridden in `ansible/group_vars/docker_servers.yml`.
 
 **`docker_host` role** (host base):
 
@@ -43,6 +43,17 @@ Default values are defined in `ansible/roles/docker_host/defaults/main.yml` and 
 | `docker_host_enable_unattended_upgrades` | Enable unattended-upgrades | `true` |
 | `docker_host_b2_cli_enabled` | Install the Backblaze B2 CLI (used by app cron jobs) | `true` |
 | `docker_host_b2_version` | Backblaze B2 CLI version to install | `4.7.1` |
+
+**`caddy` role** (reverse proxy):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `caddy_compose_path` | Caddy compose project directory | `/home/ubuntu/caddy` |
+| `caddy_sites_path` | Sites directory imported by the base Caddyfile (derived; exported as a fact by the role) | `{{ caddy_compose_path }}/sites` |
+| `caddy_container_name` | Container app roles restart after changing a snippet | `caddy` |
+| `caddy_image` | Caddy image | `caddy:alpine` |
+
+The role exports `caddy_sites_path` and `caddy_container_name` as facts for the app roles (see the role README). The base Caddyfile imports `/etc/caddy/sites/*.caddy` and includes a `:80` placeholder so the config stays valid while no app snippet exists.
 
 **`nextcloud_aio` role** (app):
 
@@ -65,21 +76,37 @@ Default values are defined in `ansible/roles/docker_host/defaults/main.yml` and 
 
 ## Docker Compose Stack
 
-The Ansible role generates a `docker-compose.yml` with two services:
+The Ansible roles generate two compose projects:
 
-### nextcloud-aio-mastercontainer
+### nextcloud-aio (role `nextcloud_aio`)
+
+#### nextcloud-aio-mastercontainer
 - Image: `ghcr.io/nextcloud-releases/all-in-one:latest`
 - Exposes `127.0.0.1:8080` for the AIO admin interface
 - Mounts the rootless Docker socket (read-only)
 - Environment variables control Apache binding, PHP limits, backups, and logging
 
-### caddy
-- Image: `caddy:alpine`
-- Runs in `network_mode: host`
-- Serves on ports 80/443 and proxies to the AIO Apache container
-- Provides `.well-known/carddav` and `.well-known/caldav` redirects
+### caddy (role `caddy`)
 
-### Caddyfile
+#### caddy
+- Image: `caddy:alpine`
+- Runs in `network_mode: host`, serving on ports 80/443
+- Mounts the base Caddyfile and the sites directory (read-only) from its own compose project, plus the named volumes `caddy_config` / `caddy_data` (the same ones the pre-#38 AIO compose used, so Let's Encrypt certificates carry over untouched)
+
+### Base Caddyfile (`caddy` role)
+
+Imports the per-app snippets and keeps a `:80` placeholder so the config stays valid while no snippet exists:
+
+```
+import /etc/caddy/sites/*.caddy
+
+:80 {
+  respond "Service starting up" 503
+}
+```
+
+### Nextcloud site snippet (role `nextcloud_aio`, written to `sites/nextcloud.caddy`)
+
 ```
 aio.callepuzzle.com {
   header Strict-Transport-Security max-age=31536000
@@ -89,7 +116,16 @@ aio.callepuzzle.com {
 }
 ```
 
+The role restarts the `caddy` container whenever the snippet changes (Caddy only reads its config at startup).
+
 ## Systemd Services
+
+### docker-compose-caddy.service
+User-scoped systemd service that starts the Caddy compose project after the Docker socket is available:
+```bash
+systemctl --user status docker-compose-caddy
+journalctl --user -u docker-compose-caddy
+```
 
 ### docker-compose-nextcloud.service
 User-scoped systemd service that starts the compose stack after the Docker socket is available:
@@ -175,6 +211,9 @@ docker logs nextcloud-aio-mastercontainer
 # View Caddy logs
 docker logs caddy
 
+# Restart the Caddy compose project
+systemctl --user restart docker-compose-caddy
+
 # Restart the compose stack
 systemctl --user restart docker-compose-nextcloud
 
@@ -207,13 +246,21 @@ jilgue/
 │       │   ├── defaults/main.yml
 │       │   ├── tasks/main.yml
 │       │   └── README.md
+│       ├── caddy/                   # Reverse proxy: own compose project, site snippets
+│       │   ├── defaults/main.yml
+│       │   ├── tasks/main.yml
+│       │   ├── templates/
+│       │   │   ├── Caddyfile.j2
+│       │   │   ├── docker-compose.yml.j2
+│       │   │   └── docker-compose.service.j2
+│       │   └── README.md
 │       └── nextcloud_aio/
 │           ├── defaults/main.yml    # Default role variables
 │           ├── tasks/main.yml       # Role tasks
 │           ├── molecule/            # Molecule scenarios (functional test, B2 restore)
 │           └── templates/
 │           ├── docker-compose.yml.j2
-│           ├── Caddyfile.j2
+│           ├── nextcloud.caddy.j2
 │           ├── docker-compose.service.j2
 │           ├── nextcloud-aio-backup.service.j2
 │           └── nextcloud-aio-backup.timer.j2

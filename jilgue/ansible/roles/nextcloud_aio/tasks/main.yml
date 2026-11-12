@@ -1,7 +1,8 @@
 ---
 # Nextcloud AIO app deployment. Depends on the docker_host role having run
 # first in the same play (rootless Docker daemon + B2 CLI already installed;
-# docker_host_user shared).
+# docker_host_user shared), and on the caddy role right after it (sites
+# directory + proxy container for the site snippet written here).
 
 - name: Get docker_host_user UID
   ansible.builtin.command: id -u {{ docker_host_user }}
@@ -30,14 +31,17 @@
     mode: "0750"
   when: nextcloud_aio_backup_dir | length > 0
 
-- name: Copy Caddyfile
+# Site snippet for the caddy role's reverse proxy (caddy_sites_path is
+# exported by that role; the default here keeps this role runnable
+# standalone). Caddy imports it via the base Caddyfile.
+- name: Write the Nextcloud site snippet for Caddy
   ansible.builtin.template:
-    src: Caddyfile.j2
-    dest: "{{ nextcloud_aio_compose_path }}/Caddyfile"
+    src: nextcloud.caddy.j2
+    dest: "{{ caddy_sites_path }}/nextcloud.caddy"
     owner: "{{ docker_host_user }}"
     group: "{{ docker_host_user }}"
     mode: "0640"
-  register: nextcloud_aio_caddyfile
+  register: nextcloud_aio_caddy_site
 
 - name: Copy docker-compose.yml
   ansible.builtin.template:
@@ -89,16 +93,23 @@
     PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
   when: nextcloud_aio_compose_file.changed
 
-# Caddy only reads its Caddyfile at startup, and it's a bind-mounted file
-# rather than part of the compose service definition, so "docker compose up
-# -d" above won't make it reload on its own.
-- name: Restart Caddy to apply Caddyfile changes
+# Caddy only reads its site snippets at startup, and they're bind-mounted
+# files rather than part of the compose service definition, so "docker
+# compose up -d" above won't make it reload on its own.
+- name: Restart Caddy to apply the site snippet changes
   ansible.builtin.command:
-    cmd: docker restart caddy
+    cmd: docker restart {{ caddy_container_name }}
   environment:
     DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
     PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
-  when: nextcloud_aio_caddyfile.changed
+  when: nextcloud_aio_caddy_site.changed
+
+# Obsolete since #38: the base Caddyfile moved to the caddy role's own
+# compose project; this role now only ships the site snippet above.
+- name: Remove the obsolete Caddyfile from the AIO compose project
+  ansible.builtin.file:
+    path: "{{ nextcloud_aio_compose_path }}/Caddyfile"
+    state: absent
 
 - name: Create Nextcloud AIO backup systemd service
   ansible.builtin.template:

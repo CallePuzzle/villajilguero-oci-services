@@ -4,6 +4,7 @@
   roles:
     # Host base: Docker rootless, hardening, B2 CLI (#37)
     - docker_host
-    # Reverse proxy in host network mode (#38 adds it here, between both roles)
-    # - caddy
+    # Reverse proxy with per-app site snippets (#38)
+    - caddy
+    # App: mastercontainer, backup timer, B2 sync cron
     - nextcloud_aio

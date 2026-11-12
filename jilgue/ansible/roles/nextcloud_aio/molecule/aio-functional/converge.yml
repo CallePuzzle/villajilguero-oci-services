@@ -47,7 +47,7 @@
       args:
         creates: "{{ backup_dir_path }}/config"
 
-- name: Deploy the docker_host and nextcloud_aio roles
+- name: Deploy the docker_host, caddy and nextcloud_aio roles
   hosts: all
   gather_facts: false
   vars:
@@ -74,6 +74,8 @@
     # Native overlayfs mounts aren't available this deep in nested
     # containers; fuse-overlayfs is the supported fallback.
     docker_host_storage_driver: fuse-overlayfs
+    # Keep the proxy's compose project inside the test user's home.
+    caddy_compose_path: "/home/{{ docker_test_user }}/caddy"
     # Hardening is orthogonal to what this scenario validates (a working
     # AIO instance you can restore into) and adds failure modes specific
     # to running nested inside a container.
@@ -85,6 +87,7 @@
     nextcloud_aio_backup_enabled: false
     nextcloud_aio_b2_sync_enabled: false
   roles:
-    # caddy (#38) will slot in between these two roles
     - docker_host
+    # Reverse proxy (its site snippet is written by nextcloud_aio)
+    - caddy
     - nextcloud_aio

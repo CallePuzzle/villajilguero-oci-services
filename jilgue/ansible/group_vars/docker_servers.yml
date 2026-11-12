@@ -1,4 +1,5 @@
 ---
 docker_host_user: ubuntu
+caddy_compose_path: /home/ubuntu/caddy
 nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
 nextcloud_aio_compose_file: docker-compose.yml

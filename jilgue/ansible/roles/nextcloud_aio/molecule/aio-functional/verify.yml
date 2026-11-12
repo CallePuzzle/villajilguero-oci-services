@@ -2,7 +2,44 @@
 - name: Verify the AIO functional test environment
   hosts: all
   gather_facts: false
+  vars:
+    # Must match the converge playbook (play vars don't persist between them)
+    nextcloud_aio_domain: aio.callepuzzle.com
   tasks:
+    - name: Get the test user UID for the rootless Docker socket
+      ansible.builtin.command: id -u {{ docker_test_user }}
+      register: test_user_uid
+      changed_when: false
+
+    # The healthcheck probes the TLS listener with nc, so this proves the
+    # caddy compose project is up and serving the site (the placeholder
+    # in the base Caddyfile alone doesn't listen on 443).
+    - name: Check that the caddy container is healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format {{ '{{.State.Health.Status}}' }} caddy
+      environment:
+        DOCKER_HOST: "unix:///run/user/{{ test_user_uid.stdout }}/docker.sock"
+      register: caddy_health
+      until: caddy_health.stdout | trim == "healthy"
+      retries: 12
+      delay: 10
+      changed_when: false
+
+    # 502 is the expected steady state in this scenario: Caddy answering
+    # over TLS with the site's internal cert already proves the Nextcloud
+    # snippet was imported and the proxy chain is up; Apache only listens
+    # on 11000 once the AIO stack is started/restored via the UI.
+    - name: Check that Caddy terminates TLS for the Nextcloud site
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk --resolve {{ nextcloud_aio_domain }}:443:127.0.0.1
+          https://{{ nextcloud_aio_domain }}/ -o /dev/null -w '%{http_code}'
+      register: caddy_nextcloud_tls
+      until: caddy_nextcloud_tls.stdout in ['200', '301', '302', '400', '401', '403', '502']
+      retries: 6
+      delay: 10
+      changed_when: false
+
     - name: Check that the mastercontainer admin UI is reachable
       ansible.builtin.uri:
         url: "https://localhost:8080"

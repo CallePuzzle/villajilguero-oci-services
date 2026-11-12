@@ -1,0 +1,145 @@
+---
+# Reverse proxy: Caddy in its own compose project, host network mode.
+# App roles (nextcloud_aio, wallabag, ...) drop site snippets into the
+# sites directory and restart the container when they change. Depends on
+# the docker_host role having run first in the same play (rootless Docker
+# daemon; docker_host_user shared).
+
+- name: Get docker_host_user UID
+  ansible.builtin.command: id -u {{ docker_host_user }}
+  register: docker_host_uid_result
+  changed_when: false
+
+- name: Define rootless Docker socket path
+  ansible.builtin.set_fact:
+    docker_host_uid: "{{ docker_host_uid_result.stdout }}"
+    docker_host_socket_path: "/run/user/{{ docker_host_uid_result.stdout }}/docker.sock"
+
+# Facts for the app roles. Re-exporting makes overrides of
+# caddy_compose_path (e.g. in molecule scenarios) flow downstream, since
+# set_fact outranks the defaults each app role replicates.
+- name: Export Caddy paths for the app roles
+  ansible.builtin.set_fact:
+    caddy_sites_path: "{{ caddy_sites_path }}"
+    caddy_container_name: "{{ caddy_container_name }}"
+
+- name: Create Caddy compose project directory
+  ansible.builtin.file:
+    path: "{{ caddy_compose_path }}"
+    state: directory
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0750"
+
+- name: Create Caddy sites directory
+  ansible.builtin.file:
+    path: "{{ caddy_sites_path }}"
+    state: directory
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0750"
+
+- name: Copy base Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ caddy_compose_path }}/Caddyfile"
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0640"
+  register: caddy_base_caddyfile
+
+- name: Copy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ caddy_compose_path }}/{{ caddy_compose_file }}"
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0640"
+  register: caddy_compose_file
+
+- name: Ensure user systemd directory
+  ansible.builtin.file:
+    path: "/home/{{ docker_host_user }}/.config/systemd/user"
+    state: directory
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0750"
+
+- name: Create systemd service for docker compose
+  ansible.builtin.template:
+    src: docker-compose.service.j2
+    dest: "/home/{{ docker_host_user }}/.config/systemd/user/docker-compose-caddy.service"
+    owner: "{{ docker_host_user }}"
+    group: "{{ docker_host_user }}"
+    mode: "0640"
+
+- name: Reload user systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+    scope: user
+
+# Migration guard from the pre-#38 layout, where Caddy was a service of
+# the nextcloud-aio compose project. The new project reuses the same
+# named volumes (caddy_config / caddy_data, so the Let's Encrypt
+# certificates carry over untouched), but the container name "caddy"
+# collides: remove the legacy container — only if it really belongs to
+# the AIO project — right before the new one starts. Fresh installs and
+# already migrated hosts (container belongs to the caddy project) skip
+# the removal. It happens after all files and the unit are in place and
+# immediately before the new stack starts, so the seconds of downtime
+# during the traspaso are as short as possible and nothing can fail in
+# between them.
+- name: Check whether a legacy caddy container from the AIO compose project exists
+  # The label filter does the project matching server-side, so no quoting
+  # games: non-empty output (rc 0) means the legacy container is present.
+  ansible.builtin.command:
+    cmd: >-
+      docker ps --all --filter name=^caddy$
+      --filter label=com.docker.compose.project=nextcloud-aio
+      --format {{ '{{.ID}}' }}
+  environment:
+    DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  register: caddy_legacy_container
+  changed_when: false
+  failed_when: false
+
+- name: Remove the legacy Caddy container from the AIO compose project
+  ansible.builtin.command:
+    cmd: docker rm -f caddy
+  environment:
+    DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  when:
+    - caddy_legacy_container.rc == 0
+    - caddy_legacy_container.stdout | trim | length > 0
+
+- name: Start and enable docker-compose-caddy service
+  ansible.builtin.systemd:
+    name: docker-compose-caddy
+    state: started
+    enabled: yes
+    scope: user
+
+# The systemd unit above only starts docker-compose-caddy if it wasn't
+# running; it won't pick up changes to docker-compose.yml on its own,
+# so re-apply explicitly when it changed.
+- name: Apply docker-compose.yml changes to the running containers
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ caddy_compose_path }}"
+  environment:
+    DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  when: caddy_compose_file.changed
+
+# Caddy only reads its Caddyfile at startup, and it's a bind-mounted file
+# rather than part of the compose service definition, so "docker compose up
+# -d" above won't make it reload on its own.
+- name: Restart Caddy to apply Caddyfile changes
+  ansible.builtin.command:
+    cmd: docker restart {{ caddy_container_name }}
+  environment:
+    DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  when: caddy_base_caddyfile.changed

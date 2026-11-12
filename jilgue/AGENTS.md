@@ -5,9 +5,9 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 ## Arquitectura
 
 - **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.7.2` en `main.tf`). El módulo **nunca reemplaza la instancia viva** (submódulo `compute-instance` vendorizado con `ignore_changes = [metadata, source_details]`): cloud-init e imagen solo aplican en el primer boot; los parches van por unattended-upgrades.
-- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2) y `nextcloud_aio` (app). El playbook los ejecuta en ese orden; `caddy` se insertará entre ambos (tarea #38).
+- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2), `caddy` (reverse proxy con compose propio y snippets de sitio por app) y `nextcloud_aio` (app). El playbook los ejecuta en ese orden.
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`.
+- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`) y reinicia el contenedor `caddy` si cambia.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
 
 ## Operaciones comunes
@@ -103,6 +103,17 @@ Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml
 | `docker_host_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
 | `docker_host_b2_cli_enabled` | Instalar el CLI de Backblaze B2 (lo usan los crons de las apps) | `true` |
 | `docker_host_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
+
+**Rol `caddy`** (reverse proxy):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `caddy_compose_path` | Directorio del proyecto compose de Caddy | `/home/ubuntu/caddy` |
+| `caddy_sites_path` | Directorio de snippets de sitio que importa el Caddyfile base (derivado; lo exportan como fact tanto `caddy` como los roles de app) | `{{ caddy_compose_path }}/sites` |
+| `caddy_container_name` | Contenedor que los roles de app reinician tras cambiar un snippet | `caddy` |
+| `caddy_image` | Imagen de Caddy | `caddy:alpine` |
+
+El rol deja `caddy_sites_path` y `caddy_container_name` como facts para los roles de app (ver README del rol). El Caddyfile base incluye un placeholder `:80` para que la config siga siendo válida cuando no hay snippets.
 
 **Rol `nextcloud_aio`** (app):
 
