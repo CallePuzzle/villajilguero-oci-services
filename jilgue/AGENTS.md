@@ -5,8 +5,9 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 ## Arquitectura
 
 - **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.7.2` en `main.tf`). El módulo **nunca reemplaza la instancia viva** (submódulo `compute-instance` vendorizado con `ignore_changes = [metadata, source_details]`): cloud-init e imagen solo aplican en el primer boot; los parches van por unattended-upgrades.
+- **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2), `caddy` (reverse proxy con compose propio y snippets de sitio por app), `nextcloud_aio` y `wallabag` (apps). El playbook los ejecuta en ese orden.
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`.
+- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`, `wallabag.caddy`) y reinicia el contenedor `caddy` si cambia. **Migración desde el layout anterior** (Caddy dentro del compose `nextcloud-aio`): el rol `caddy` la hace sola al final del play, con rollback automático; ver [`MIGRATION.md`](MIGRATION.md) para el procedimiento en producción y el rollback manual.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
 
 ## Operaciones comunes
@@ -23,6 +24,7 @@ poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ### Acceso
 - **Nextcloud**: `https://aio.callepuzzle.com`
 - **AIO Admin**: `https://<ip-publica>:8080` (restringido via UFW; usar túnel SSH si es necesario)
+- **Wallabag** (deshabilitada por defecto: poner `wallabag_enabled: true` en group_vars para desplegarla): `https://wallabag.callepuzzle.com`. El login por defecto de la imagen es `wallabag` / `wallabag`: **cambia la contraseña tras el primer acceso** (Configuración → Mi cuenta) y crea usuarios individuales; el registro público ya viene desactivado.
 
 ### Backup y restauración
 AIO incluye BorgBackup integrado. Se gestiona desde la UI de AIO (`https://localhost:8080`).
@@ -43,7 +45,14 @@ docker exec --env DAILY_BACKUP=1 --env AUTOMATIC_UPDATES=1 nextcloud-aio-masterc
 ```bash
 /usr/local/bin/b2 sync /home/ubuntu/nextcloud-aio-backups b2://callepuzzle-nextcloud-borg-backup/
 ```
-El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI se instala automáticamente por Ansible, pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
+El log queda en `/home/ubuntu/nextcloud-aio-b2-sync.log`. El CLI lo instala automáticamente el rol `docker_host` (`docker_host_b2_cli_enabled`), pero requiere autorización manual y fuera de banda (`b2 account authorize`) ya que las credenciales todavía no se gestionan vía SOPS.
+
+**Backup de Wallabag** (cuando `wallabag_enabled: true`): un cron diario (por defecto a las 04:00) toma un snapshot consistente de la BD SQLite con la API de backup online (`sqlite3 <wallabag_data_path>/db/wallabag.sqlite ".backup ..."`) en `wallabag_backup_dir`, y un segundo cron (04:30) sincroniza ese directorio al bucket B2 (`wallabag_b2_bucket`, subcarpeta `wallabag/` del bucket de AIO):
+```bash
+/usr/bin/sqlite3 /home/ubuntu/wallabag/data/db/wallabag.sqlite ".backup '/home/ubuntu/wallabag-backups/wallabag.sqlite'"
+/usr/local/bin/b2 sync /home/ubuntu/wallabag-backups b2://callepuzzle-nextcloud-borg-backup/wallabag/
+```
+Los horarios van entre el backup Borg de AIO (02:00) y su sincronización B2 (05:00) para que los dos procesos `b2` no se solapen. El snapshot se sobreescribe a diario; `b2 sync` conserva en el bucket las versiones anteriores de los ficheros cambiados. Logs en `/home/ubuntu/wallabag-sqlite-backup.log` y `/home/ubuntu/wallabag-b2-sync.log`. Comparte la misma deuda del CLI `b2` sin autorizar (ver Advertencias). Las imágenes de las entradas no van al backup (volumen nombrado, contenido re-descargable); la BD sí incluye los artículos, usuarios y ajustes.
 
 **Backup remoto**: Como alternativa al local, desde la UI de AIO se puede configurar un repositorio Borg remoto vía SSH. AIO genera automáticamente un par de claves SSH. Se recomienda usar modo append-only para protección contra ransomware.
 
@@ -77,38 +86,115 @@ Ambos test:
 - **Automáticas**: El timer de backup incluye `AUTOMATIC_UPDATES=1`, por lo que AIO se actualiza automáticamente durante el backup diario.
 - **Manuales**: Desde la UI de AIO (`https://localhost:8080`) o ejecutando el script de backup manualmente.
 
+### Unidades systemd y crons
+
+Unidades de **ámbito usuario** en `/home/ubuntu/.config/systemd/user/` (usuario `docker_host_user`, con linger activado por el rol `docker_host`):
+
+| Unidad | Rol | Función |
+|--------|-----|---------|
+| `docker-compose-caddy.service` | `caddy` | oneshot + `RemainAfterExit`: `docker compose up -d` en `~/caddy` en cuanto el socket rootless está disponible |
+| `docker-compose-nextcloud.service` | `nextcloud_aio` | ídem en `~/nextcloud-aio` |
+| `docker-compose-wallabag.service` | `wallabag` | ídem en `~/wallabag` (solo con `wallabag_enabled: true`) |
+| `nextcloud-aio-backup.service` / `.timer` | `nextcloud_aio` | backup diario (02:00) con `AUTOMATIC_UPDATES=1` |
+
+Crons en el crontab de `docker_host_user` (detallados en «Backup y restauración»): sync B2 de AIO (05:00, log `~/nextcloud-aio-b2-sync.log`), snapshot SQLite de Wallabag (04:00, log `~/wallabag-sqlite-backup.log`) y su sync B2 (04:30, log `~/wallabag-b2-sync.log`), estos dos solo con `wallabag_enabled: true`.
+
 ### Seguridad
 - **UFW**: Solo 22 (SSH), 80 (HTTP) y 443 (HTTPS) están abiertos públicamente. El puerto 8080 (AIO admin) está denegado desde fuera.
 - **Security List OCI** (módulo ≥ v1.6.0, efectivo tras el siguiente `terraform apply`): el 22 (SSH) solo admite la IP pública `/32` de quien ejecuta terraform (data source `http` contra `ipv4.icanhazip.com`; si cambias de red, el siguiente apply actualiza la regla). El 80/443 siguen abiertos a `0.0.0.0/0` via `additional_security_list_rules` (tráfico web necesario para Nextcloud).
 - **fail2ban**: Protege SSH contra fuerza bruta.
 - **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
+- UFW, fail2ban y unattended-upgrades los instala y configura el rol `docker_host` (conmutadores `docker_host_enable_*`). UFW no se resetea en cada ejecución: añade las reglas que falten, pero las reglas añadidas a mano (o retiradas del rol) hay que borrarlas con `ufw delete`. fail2ban solo se reinicia si cambia `jail.local`.
 - **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
 - **Log driver**: Docker usa `log-driver: local` para evitar crecimiento descontrolado de logs.
 - **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configurado para Caddy en host network.
 
 ### Variables importantes
-Definidas en `ansible/roles/nextcloud_aio/defaults/main.yml` y sobrescribibles en `group_vars/docker_servers.yml`:
+
+Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml`; las de `caddy` en `ansible/roles/caddy/defaults/main.yml`; las de `nextcloud_aio` en `ansible/roles/nextcloud_aio/defaults/main.yml`; las de `wallabag` en `ansible/roles/wallabag/defaults/main.yml`. Todas son sobrescribibles en `group_vars/docker_servers.yml`.
+
+**Rol `docker_host`** (base del host):
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
+| `docker_host_user` | Usuario que ejecuta Docker rootless (compartido con los roles de app) | `ubuntu` |
+| `docker_host_storage_driver` | Storage driver de Docker (vacío = default; `fuse-overlayfs` en entornos anidados) | `""` |
+| `docker_host_enable_ufw` | Habilitar UFW | `true` |
+| `docker_host_enable_fail2ban` | Habilitar fail2ban | `true` |
+| `docker_host_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
+| `docker_host_b2_cli_enabled` | Instalar el CLI de Backblaze B2 (lo usan los crons de las apps) | `true` |
+| `docker_host_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
+
+**Rol `caddy`** (reverse proxy):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `caddy_compose_path` | Directorio del proyecto compose de Caddy | `/home/ubuntu/caddy` |
+| `caddy_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
+| `caddy_sites_path` | Directorio de snippets de sitio que importa el Caddyfile base (derivado; lo exportan como fact tanto `caddy` como los roles de app) | `{{ caddy_compose_path }}/sites` |
+| `caddy_container_name` | Contenedor que los roles de app reinician tras cambiar un snippet | `caddy` |
+| `caddy_image` | Imagen de Caddy | `caddy:alpine` |
+| `docker_host_user` | Usuario que ejecuta Docker rootless y es propietario del compose (compartido con los roles de app) | `ubuntu` |
+| `caddy_legacy_compose_project` | Proyecto compose cuyo contenedor `caddy` se migra (layout anterior a #38) | `nextcloud-aio` |
+| `caddy_legacy_backup_name` | Nombre temporal del contenedor legacy durante el traspaso (rollback) | `{{ caddy_container_name }}-legacy-pre38` |
+
+El rol deja `caddy_sites_path`, `caddy_container_name` y `caddy_legacy_migration_pending` como facts para los roles de app (ver README del rol). Mientras la migración esté pendiente, los roles de app no reinician el proxy ni borran el `~/nextcloud-aio/Caddyfile` antiguo que el contenedor legacy sigue montando; la ejecución siguiente a un traspaso exitoso lo elimina (ver [`MIGRATION.md`](MIGRATION.md)). El Caddyfile base incluye un placeholder `:80` para que la config siga siendo válida cuando no hay snippets.
+
+**Rol `nextcloud_aio`** (app):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `nextcloud_aio_compose_path` | Directorio del proyecto compose | `/home/ubuntu/nextcloud-aio` |
+| `nextcloud_aio_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
+| `docker_host_user` | Usuario que ejecuta Docker rootless y es propietario del compose (compartido con los roles de host; default replicado) | `ubuntu` |
 | `nextcloud_aio_domain` | Dominio público de Nextcloud | `aio.callepuzzle.com` |
+| `nextcloud_aio_apache_port` | Puerto Apache de AIO que proxyfíca Caddy | `11000` |
+| `nextcloud_aio_apache_ip_binding` | IP donde escucha el Apache de AIO | `127.0.0.1` |
+| `nextcloud_aio_skip_domain_validation` | Saltarse la validación de dominio de AIO | `true` |
+| `nextcloud_aio_mastercontainer_ip_binding` | IP de la interfaz admin del mastercontainer (8080); no exponer salvo tests | `127.0.0.1` |
+| `nextcloud_aio_caddy_tls_internal` | Servir el sitio con certificado autofirmado local en vez de pedirlo a Let's Encrypt (solo para escenarios de test; lo aplica el snippet `nextcloud.caddy`) | `false` |
+| `caddy_sites_path` | Directorio de snippets del proxy (fact del rol `caddy`; default replicado) | `/home/ubuntu/caddy/sites` |
+| `caddy_container_name` | Contenedor Caddy a reiniciar tras cambiar el snippet (fact del rol `caddy`) | `caddy` |
 | `nextcloud_aio_datadir` | Path host para datos (vacío = volumen Docker) | `""` |
 | `nextcloud_aio_memory_limit` | Límite de memoria PHP | `2048M` |
 | `nextcloud_aio_upload_limit` | Límite de subida | `16G` |
 | `nextcloud_aio_max_time` | Tiempo máx. de ejecución PHP | `3600` |
 | `nextcloud_aio_borg_retention_policy` | Retención de backups Borg | `--keep-within=7d --keep-weekly=4 --keep-monthly=6` |
 | `nextcloud_aio_log_level` | Nivel de log de AIO | `warn` |
+| `nextcloud_aio_trusted_proxies` | Proxies de confianza para Nextcloud | `127.0.0.1` |
 | `nextcloud_aio_disable_backup_section` | Ocultar sección de backup en la UI de AIO | `false` |
 | `nextcloud_aio_backup_dir` | Directorio host para backups locales de Borg | `/home/ubuntu/nextcloud-aio-backups` |
 | `nextcloud_aio_backup_enabled` | Habilitar timer de backup diario | `true` |
 | `nextcloud_aio_backup_time` | Hora del backup diario | `02:00` |
-| `nextcloud_aio_b2_sync_enabled` | Habilitar sincronización diaria del backup a Backblaze B2 | `true` |
+| `nextcloud_aio_b2_sync_enabled` | Habilitar sincronización diaria del backup a Backblaze B2 (requiere `docker_host_b2_cli_enabled`) | `true` |
 | `nextcloud_aio_b2_sync_time` | Hora de la sincronización a B2 | `05:00` |
-| `nextcloud_aio_b2_version` | Versión del CLI de Backblaze B2 a instalar | `4.7.1` |
 | `nextcloud_aio_b2_bucket` | Bucket B2 destino de la sincronización | `b2://callepuzzle-nextcloud-borg-backup/` |
-| `nextcloud_aio_enable_ufw` | Habilitar UFW | `true` |
-| `nextcloud_aio_enable_fail2ban` | Habilitar fail2ban | `true` |
-| `nextcloud_aio_enable_unattended_upgrades` | Habilitar unattended-upgrades | `true` |
+
+**Rol `wallabag`** (app, deshabilitada por defecto):
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `wallabag_enabled` | Desplegar la app y sus crons de backup | `false` |
+| `wallabag_compose_path` | Directorio del proyecto compose | `/home/ubuntu/wallabag` |
+| `wallabag_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
+| `wallabag_domain` | Dominio público de Wallabag | `wallabag.callepuzzle.com` |
+| `wallabag_caddy_tls_internal` | Servir el sitio con certificado autofirmado local en vez de pedirlo a Let's Encrypt (solo para escenarios de test) | `false` |
+| `wallabag_image` | Imagen oficial multi-arch (arm64 nativo), pinneada a una tag de versión concreta | `wallabag/wallabag:2.6.15.1` |
+| `wallabag_port` | Puerto en loopback que proxyfíca Caddy (8080 y 11000 ya ocupados) | `8081` |
+| `wallabag_ip_binding` | IP donde se publica el puerto (no exponer salvo tests) | `127.0.0.1` |
+| `wallabag_locale` | Idioma de la interfaz | `en` |
+| `wallabag_secret` | Secreto de tokens de la app (vacío = default público de la imagen) | `""` |
+| `wallabag_data_path` | Bind mount del host para la BD SQLite | `{{ wallabag_compose_path }}/data` |
+| `wallabag_backup_dir` | Directorio local del snapshot SQLite que se sincroniza a B2 | `/home/ubuntu/wallabag-backups` |
+| `wallabag_backup_file` | Nombre del fichero snapshot | `wallabag.sqlite` |
+| `wallabag_backup_enabled` | Habilitar el snapshot SQLite diario | `true` |
+| `wallabag_backup_time` | Hora del snapshot SQLite | `04:00` |
+| `wallabag_b2_sync_enabled` | Habilitar la sincronización diaria del snapshot a B2 (requiere `docker_host_b2_cli_enabled`) | `true` |
+| `wallabag_b2_sync_time` | Hora de la sincronización a B2 | `04:30` |
+| `wallabag_b2_bucket` | Bucket B2 destino (subcarpeta del bucket de AIO) | `b2://callepuzzle-nextcloud-borg-backup/wallabag/` |
+| `caddy_sites_path` | Directorio de snippets del proxy (fact del rol `caddy`; default replicado para poder ejecutarse en solitario) | `/home/ubuntu/caddy/sites` |
+| `caddy_container_name` | Contenedor Caddy a reiniciar tras cambiar el snippet (fact del rol `caddy`) | `caddy` |
+| `docker_host_user` | Usuario que ejecuta Docker rootless y es propietario del compose (compartido con los roles de host; default replicado) | `ubuntu` |
 
 ### Docker daemon
 El daemon rootless se configura con:
@@ -118,4 +204,5 @@ El daemon rootless se configura con:
 ### Advertencias
 - `NEXTCLOUD_DATADIR` **solo puede configurarse antes del primer arranque** de Nextcloud. Cambiarlo después requiere recrear la instalación.
 - El puerto 8080 (AIO admin) está denegado en UFW y no tiene regla de ingress en la Security List de OCI, por lo que solo es accesible via túnel SSH (`ssh -L 8080:localhost:8080 ubuntu@<ip>`).
-- `nextcloud_aio_b2_sync_enabled` requiere que el CLI `b2` esté autorizado manualmente en el host (`b2 account authorize`) antes de que el cron pueda sincronizar; las credenciales aún no se gestionan vía SOPS.
+- `nextcloud_aio_b2_sync_enabled` requiere que el CLI `b2` esté autorizado manualmente en el host (`b2 account authorize`) antes de que el cron pueda sincronizar; las credenciales aún no se gestionan vía SOPS. Lo mismo aplica al cron de Wallabag (`wallabag_b2_sync_enabled`).
+- El login por defecto de Wallabag es `wallabag` / `wallabag`: **cambia la contraseña tras el primer acceso** (Configuración → Mi cuenta); el registro público ya viene desactivado de fábrica. El primer arranque puede tardar unos minutos (inicializa la BD y compila assets).

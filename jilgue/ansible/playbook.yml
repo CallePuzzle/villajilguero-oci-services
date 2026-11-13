@@ -2,4 +2,12 @@
 - name: Configure OCI instance with rootless Docker and Nextcloud AIO
   hosts: docker_servers
   roles:
+    # Host base: Docker rootless, hardening, B2 CLI (#37)
+    - docker_host
+    # Reverse proxy with per-app site snippets (#38)
+    - caddy
+    # App: mastercontainer, backup timer, B2 sync cron
     - nextcloud_aio
+    # App: Wallabag with SQLite + daily B2 backup (#39). Inert until
+    # wallabag_enabled is flipped to true in group_vars.
+    - wallabag

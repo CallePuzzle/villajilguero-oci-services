@@ -51,3 +51,7 @@ credentials.json
 tmp/
 
 jilguedev/ansible/inventory/oci_docker.yml
+
+# Per-host secrets for the jilgue ansible deploy (e.g. wallabag_secret),
+# same known-debt pattern as .borg.txt: local-only, never committed
+jilgue/ansible/host_vars/

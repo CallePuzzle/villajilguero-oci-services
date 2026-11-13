@@ -1,0 +1,7 @@
+{{ wallabag_domain }} {
+{% if wallabag_caddy_tls_internal %}
+  tls internal
+{% endif %}
+  header Strict-Transport-Security max-age=31536000
+  reverse_proxy localhost:{{ wallabag_port }}
+}

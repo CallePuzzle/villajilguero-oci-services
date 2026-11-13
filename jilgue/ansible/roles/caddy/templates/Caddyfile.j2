@@ -1,0 +1,17 @@
+# Managed by Ansible (caddy role). Per-app site snippets live in
+# /etc/caddy/sites (the sites directory, bind-mounted read-only): each
+# app role writes its own file there (e.g. nextcloud.caddy) and restarts
+# the container when it changes, since Caddy only reads this config at
+# startup.
+import /etc/caddy/sites/*.caddy
+
+# Placeholder so the config stays valid while no app has written a
+# snippet yet: it keeps at least one site block regardless of whether
+# the glob above matches (an empty glob only warns, but a config with
+# no sites at all would serve nothing). It answers plain HTTP with 503
+# for any host no snippet claims; the ACME HTTP-01 challenges and the
+# automatic HTTP->HTTPS redirects of imported sites take precedence
+# over this catch-all.
+:80 {
+  respond "Service starting up" 503
+}

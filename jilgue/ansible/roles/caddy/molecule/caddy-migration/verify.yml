@@ -1,0 +1,91 @@
+---
+- name: Verify the legacy Caddy migration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get the test user UID for the rootless Docker socket
+      ansible.builtin.command: id -u {{ docker_test_user }}
+      register: test_user_uid
+      changed_when: false
+
+    - name: Verify through the rootless Docker socket
+      environment:
+        DOCKER_HOST: "unix:///run/user/{{ test_user_uid.stdout }}/docker.sock"
+      block:
+        - name: Read the compose project of the caddy container
+          ansible.builtin.command:
+            argv:
+              - docker
+              - inspect
+              - --format
+              - "{{ '{{index .Config.Labels \"com.docker.compose.project\"}}' }}"
+              - caddy
+          register: caddy_project
+          changed_when: false
+
+        - name: Assert caddy now belongs to the caddy compose project
+          ansible.builtin.assert:
+            that:
+              - caddy_project.stdout | trim == 'caddy'
+
+        - name: Check that the caddy container is healthy
+          ansible.builtin.command:
+            cmd: docker inspect --format {{ '{{.State.Health.Status}}' }} caddy
+          register: caddy_health
+          until: caddy_health.stdout | trim == "healthy"
+          retries: 12
+          delay: 10
+          changed_when: false
+
+        - name: List leftover legacy containers
+          ansible.builtin.command:
+            cmd: docker ps --all --filter name=^caddy-legacy-pre38$ --format {{ '{{.ID}}' }}
+          register: leftover
+          changed_when: false
+
+        - name: Assert the renamed legacy container was removed
+          ansible.builtin.assert:
+            that:
+              - leftover.stdout | trim | length == 0
+
+        - name: Read the marker written into caddy_data by the legacy proxy
+          ansible.builtin.command:
+            cmd: docker exec caddy cat /data/migration-marker
+          register: marker
+          changed_when: false
+
+        - name: Assert the caddy_data volume was reused (certificates kept)
+          ansible.builtin.assert:
+            that:
+              - marker.stdout | trim == 'pre38'
+
+    - name: Check that docker-compose-caddy is active and enabled
+      ansible.builtin.command:
+        cmd: systemctl --user is-active docker-compose-caddy
+      become: true
+      become_user: "{{ docker_test_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ test_user_uid.stdout }}"
+      changed_when: false
+
+    - name: Check that the new proxy serves the app snippet over HTTPS
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk --resolve {{ caddy_test_domain }}:443:127.0.0.1
+          https://{{ caddy_test_domain }}/
+      register: body
+      changed_when: false
+      failed_when: body.stdout != 'migrated'
+
+    # The base Caddyfile's catch-all :80 placeholder must not shadow the
+    # automatic HTTP->HTTPS redirect of the imported site.
+    - name: Check that plain HTTP redirects to HTTPS (not the :80 placeholder)
+      ansible.builtin.command:
+        cmd: >-
+          curl -s --resolve {{ caddy_test_domain }}:80:127.0.0.1
+          http://{{ caddy_test_domain }}/ -o /dev/null
+          -w '%{http_code} %{redirect_url}'
+      register: http_redirect
+      changed_when: false
+      failed_when: >-
+        http_redirect.stdout != '308 https://' ~ caddy_test_domain ~ '/'

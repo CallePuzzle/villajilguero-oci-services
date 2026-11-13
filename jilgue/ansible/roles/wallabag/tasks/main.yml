@@ -1,0 +1,194 @@
+---
+# Wallabag app deployment. Disabled by default (wallabag_enabled: false):
+# all tasks live inside one guarded block, same style as the AIO backup
+# tasks. Depends on the docker_host role having run first in the same play
+# (rootless Docker daemon + B2 CLI already installed; docker_host_user
+# shared), and on the caddy role right after it (sites directory + proxy
+# container for the site snippet written here).
+
+- name: Deploy Wallabag
+  when: wallabag_enabled | bool
+  block:
+    - name: Get docker_host_user UID
+      ansible.builtin.command: id -u {{ docker_host_user }}
+      register: docker_host_uid_result
+      changed_when: false
+      # Read-only; must also run under --check or the socket path is empty
+      check_mode: false
+
+    - name: Define rootless Docker socket path
+      ansible.builtin.set_fact:
+        docker_host_uid: "{{ docker_host_uid_result.stdout }}"
+        docker_host_socket_path: "/run/user/{{ docker_host_uid_result.stdout }}/docker.sock"
+
+    - name: Create Wallabag project directory
+      ansible.builtin.file:
+        path: "{{ wallabag_compose_path }}"
+        state: directory
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0750"
+
+    # Bind mount target for /var/www/wallabag/data: the SQLite DB lives on
+    # the host at <dir>/db/wallabag.sqlite so the backup cron can take a
+    # consistent snapshot with sqlite3. The image's entrypoint runs as
+    # container root, which rootless Docker maps to docker_host_user
+    # itself, so its "mkdir and chown are mandatory for local folder
+    # binding" works here (it owns the parent). The app, however, runs as
+    # the container's nobody (subuid 100000+65534), and 0750 would deny it
+    # the traverse bit on this directory ("unable to open database file",
+    # seen in the wallabag-functional molecule scenario) — hence 0755:
+    # world is traverse/read-only, and db/ itself gets chowned to nobody
+    # by the entrypoint, so only the mapped subuid writes the DB while the
+    # backup cron (docker_host_user) keeps read access.
+    - name: Create Wallabag data directory (SQLite lives here on the host)
+      ansible.builtin.file:
+        path: "{{ wallabag_data_path }}"
+        state: directory
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0755"
+
+    - name: Create local backup directory for the SQLite snapshot
+      ansible.builtin.file:
+        path: "{{ wallabag_backup_dir }}"
+        state: directory
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0750"
+
+    # Site snippet for the caddy role's reverse proxy (caddy_sites_path is
+    # exported by that role; the default here keeps this role runnable
+    # standalone). Caddy imports it via the base Caddyfile.
+    - name: Write the Wallabag site snippet for Caddy
+      ansible.builtin.template:
+        src: wallabag.caddy.j2
+        dest: "{{ caddy_sites_path }}/wallabag.caddy"
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0640"
+      register: wallabag_caddy_site
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ wallabag_compose_path }}/{{ wallabag_compose_file }}"
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0640"
+      register: wallabag_compose_result
+
+    - name: Ensure user systemd directory
+      ansible.builtin.file:
+        path: "/home/{{ docker_host_user }}/.config/systemd/user"
+        state: directory
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0750"
+
+    - name: Create systemd service for docker compose
+      ansible.builtin.template:
+        src: docker-compose.service.j2
+        dest: "/home/{{ docker_host_user }}/.config/systemd/user/docker-compose-wallabag.service"
+        owner: "{{ docker_host_user }}"
+        group: "{{ docker_host_user }}"
+        mode: "0640"
+
+    - name: Reload user systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start and enable docker-compose-wallabag service
+      ansible.builtin.systemd:
+        name: docker-compose-wallabag
+        state: started
+        enabled: yes
+        scope: user
+
+    # The systemd unit above only starts docker-compose-wallabag if it
+    # wasn't running; it won't pick up changes to docker-compose.yml on its
+    # own, so re-apply explicitly when it changed.
+    - name: Apply docker-compose.yml changes to running containers
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ wallabag_compose_path }}"
+      environment:
+        DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+        PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+      when: wallabag_compose_result.changed
+
+    # Caddy only reads its site snippets at startup, and they're bind-mounted
+    # files rather than part of the compose service definition, so "docker
+    # compose up -d" above won't make it reload on its own.
+    - name: Restart Caddy to apply the site snippet changes
+      ansible.builtin.command:
+        cmd: docker restart {{ caddy_container_name }}
+      environment:
+        DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+        PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+      # Skipped while the caddy role's legacy migration is pending: the
+      # migration handler starts the new proxy, which reads every snippet.
+      when:
+        - wallabag_caddy_site.changed
+        - not (caddy_legacy_migration_pending | default(false) | bool)
+
+    # Backups: a daily consistent snapshot of the SQLite DB (`sqlite3
+    # .backup`, which uses SQLite's online backup API) followed by a B2 sync
+    # of the snapshot directory. Both are staggered between the AIO Borg
+    # backup (02:00) and its B2 sync (05:00) so the two b2 processes never
+    # overlap. The b2 CLI still needs the manual out-of-band authorization
+    # on the host (known debt, shared with the AIO B2 sync cron).
+
+    - name: Install sqlite3 for the snapshot backup
+      ansible.builtin.apt:
+        name: sqlite3
+        state: present
+      become: true
+      when: wallabag_backup_enabled | bool
+
+    # Idempotent overwrite of one snapshot file: `b2 sync` keeps previous
+    # versions of changed files on the remote side by default, so history
+    # survives on the bucket without timestamped local copies.
+    - name: Schedule daily consistent SQLite snapshot
+      ansible.builtin.cron:
+        name: Consistent Wallabag SQLite snapshot before B2 sync
+        user: "{{ docker_host_user }}"
+        hour: "{{ wallabag_backup_time.split(':')[0] }}"
+        minute: "{{ wallabag_backup_time.split(':')[1] }}"
+        job: >-
+          /usr/bin/sqlite3 {{ wallabag_data_path }}/db/wallabag.sqlite
+          ".backup '{{ wallabag_backup_dir }}/{{ wallabag_backup_file }}'"
+          >> /home/{{ docker_host_user }}/wallabag-sqlite-backup.log 2>&1
+      become: true
+      when: wallabag_backup_enabled | bool
+
+    - name: Schedule daily sync of the SQLite backup to Backblaze B2
+      ansible.builtin.cron:
+        name: Sync Wallabag SQLite backup to Backblaze B2
+        user: "{{ docker_host_user }}"
+        hour: "{{ wallabag_b2_sync_time.split(':')[0] }}"
+        minute: "{{ wallabag_b2_sync_time.split(':')[1] }}"
+        job: >-
+          /usr/local/bin/b2 sync {{ wallabag_backup_dir }} {{ wallabag_b2_bucket }}
+          >> /home/{{ docker_host_user }}/wallabag-b2-sync.log 2>&1
+      become: true
+      when: wallabag_b2_sync_enabled | bool
+
+    # First boot installs the database and compiles assets, so this can
+    # take a few minutes; failures are ignored (checked manually via
+    # docker logs wallabag). Note the `until`: the uri module always
+    # defines `status` (it reports -1 on connection errors), so checking
+    # "is defined" would never retry.
+    - name: Wait for the Wallabag interface to be available
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ wallabag_port }}/"
+        status_code:
+          - 200
+          - 301
+          - 302
+      register: result
+      until: result.status in [200, 301, 302]
+      retries: 30
+      delay: 10
+      ignore_errors: true

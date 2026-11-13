@@ -1,4 +1,10 @@
 ---
-docker_user: ubuntu
+docker_host_user: ubuntu
+caddy_compose_path: /home/ubuntu/caddy
 nextcloud_aio_compose_path: /home/ubuntu/nextcloud-aio
 nextcloud_aio_compose_file: docker-compose.yml
+# Wallabag deployed in production since #41: enabled here, its session
+# secret lives in the gitignored host_vars/<ip>.yml (wallabag_secret).
+wallabag_enabled: true
+wallabag_compose_path: /home/ubuntu/wallabag
+wallabag_compose_file: docker-compose.yml
