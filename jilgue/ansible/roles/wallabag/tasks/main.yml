@@ -29,17 +29,23 @@
 
     # Bind mount target for /var/www/wallabag/data: the SQLite DB lives on
     # the host at <dir>/db/wallabag.sqlite so the backup cron can take a
-    # consistent snapshot with sqlite3. The image's entrypoint creates and
-    # chowns data/db on first boot ("mkdir and chown are mandatory for
-    # local folder binding" per the image), which works under rootless
-    # Docker as long as this parent directory is owned by docker_host_user.
+    # consistent snapshot with sqlite3. The image's entrypoint runs as
+    # container root, which rootless Docker maps to docker_host_user
+    # itself, so its "mkdir and chown are mandatory for local folder
+    # binding" works here (it owns the parent). The app, however, runs as
+    # the container's nobody (subuid 100000+65534), and 0750 would deny it
+    # the traverse bit on this directory ("unable to open database file",
+    # seen in the wallabag-functional molecule scenario) — hence 0755:
+    # world is traverse/read-only, and db/ itself gets chowned to nobody
+    # by the entrypoint, so only the mapped subuid writes the DB while the
+    # backup cron (docker_host_user) keeps read access.
     - name: Create Wallabag data directory (SQLite lives here on the host)
       ansible.builtin.file:
         path: "{{ wallabag_data_path }}"
         state: directory
         owner: "{{ docker_host_user }}"
         group: "{{ docker_host_user }}"
-        mode: "0750"
+        mode: "0755"
 
     - name: Create local backup directory for the SQLite snapshot
       ansible.builtin.file:
@@ -165,7 +171,9 @@
 
     # First boot installs the database and compiles assets, so this can
     # take a few minutes; failures are ignored (checked manually via
-    # docker logs wallabag).
+    # docker logs wallabag). Note the `until`: the uri module always
+    # defines `status` (it reports -1 on connection errors), so checking
+    # "is defined" would never retry.
     - name: Wait for the Wallabag interface to be available
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ wallabag_port }}/"
@@ -174,7 +182,7 @@
           - 301
           - 302
       register: result
-      until: result.status is defined
+      until: result.status in [200, 301, 302]
       retries: 30
       delay: 10
       ignore_errors: true

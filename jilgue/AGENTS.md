@@ -150,7 +150,8 @@ El rol deja `caddy_sites_path` y `caddy_container_name` como facts para los role
 | `wallabag_compose_path` | Directorio del proyecto compose | `/home/ubuntu/wallabag` |
 | `wallabag_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
 | `wallabag_domain` | Dominio público de Wallabag | `wallabag.callepuzzle.com` |
-| `wallabag_image` | Imagen oficial multi-arch (arm64 nativo), pinneada a la tag minor | `wallabag/wallabag:2.6` |
+| `wallabag_caddy_tls_internal` | Servir el sitio con certificado autofirmado local en vez de pedirlo a Let's Encrypt (solo para escenarios de test) | `false` |
+| `wallabag_image` | Imagen oficial multi-arch (arm64 nativo), pinneada a una tag de versión concreta | `wallabag/wallabag:2.6.15.1` |
 | `wallabag_port` | Puerto en loopback que proxyfíca Caddy (8080 y 11000 ya ocupados) | `8081` |
 | `wallabag_ip_binding` | IP donde se publica el puerto (no exponer salvo tests) | `127.0.0.1` |
 | `wallabag_locale` | Idioma de la interfaz | `en` |

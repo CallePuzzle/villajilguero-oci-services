@@ -40,6 +40,11 @@
       delay: 10
       changed_when: false
 
+    # Known 403 (pre-existing, documented in #43): the floating
+    # all-in-one:latest image hardened its origin-IP check and answers 403
+    # here, failing only this last check of the scenario. Not a regression
+    # of the roles; pending a separate issue to pin the mastercontainer
+    # version or adapt the scenario.
     - name: Check that the mastercontainer admin UI is reachable
       ansible.builtin.uri:
         url: "https://localhost:8080"

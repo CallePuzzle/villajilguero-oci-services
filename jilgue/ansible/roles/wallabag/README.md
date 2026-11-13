@@ -10,22 +10,29 @@ SQLite en bind mount del host y copia de seguridad diaria a Backblaze B2.
 - **Compose propio**: `docker-compose.yml` en `wallabag_compose_path` con la
   imagen oficial `wallabag/wallabag`, publicada en multi-arch (amd64/arm64
   construidos de forma nativa — sin emulación; el host es aarch64). Pinneada
-  a la tag minor `2.6` para que las subidas sean previsibles (cada release
-  refresca también `2.6`/`2`/`latest`).
+  a una tag de versión concreta (`2.6.15.1`) para que las subidas sean
+  previsibles: upstream solo publica tags de versión + `latest` (no hay tag
+  flotante `2.6`/`2`), así que subir de versión es un cambio deliberado del
+  default (o un override en group_vars).
 - **Servicio solo en loopback**: publica `wallabag_ip_binding:wallabag_port`
   (`127.0.0.1:8081` por defecto — 8080 y 11000 ya los usa AIO). Caddy (host
   network) proxyfíca `wallabag_domain` a ese puerto. La imagen trae su propio
   `HEALTHCHECK` (curl contra `/api/info`), no hace falta uno en compose.
 - **SQLite en bind mount**: `wallabag_data_path` se monta en
   `/var/www/wallabag/data`, así la BD queda en el host en
-  `<wallabag_data_path>/db/wallabag.sqlite`. El entrypoint de la imagen crea
-  y hace `chown` de `data/db` en el primer arranque ("mandatory for local
-  folder binding"), lo que funciona bajo Docker rootless mientras el
-  directorio padre sea de `docker_host_user`. Las imágenes de las entradas,
-  en cambio, van en un volumen nombrado (`wallabag_images`): el `nobody` del
-  contenedor se mapea a un subuid del host que no puede escribir en un bind
-  mount de `docker_host_user` y nadie hace ese `chown` por ellas. No se
-  incluyen en el backup: son contenido re-descargable.
+  `<wallabag_data_path>/db/wallabag.sqlite`. El rol crea el directorio con
+  modo `0755` (propietario `docker_host_user`): el entrypoint de la imagen
+  corre como root del contenedor, que Docker rootless mapea al propio
+  `docker_host_user` (por eso su "mkdir and chown are mandatory for local
+  folder binding" funciona y deja `data/db` en el subuid del `nobody` del
+  contenedor), pero la app corre como ese `nobody` y con `0750` se queda
+  sin el bit de traverse sobre el bind mount — la BD no se llega a abrir
+  ("unable to open database file", visto en el scenario Molecule
+  `wallabag-functional`). El fichero SQLite resultante es `0644`, legible
+  por el cron de backup. Las imágenes de las entradas, en cambio, van en
+  un volumen nombrado (`wallabag_images`), inicializado desde la imagen y
+  ya con el propietario correcto. No se incluyen en el backup: son
+  contenido re-descargable.
 - **Unit systemd** `docker-compose-wallabag.service` (ámbito usuario):
   oneshot + `RemainAfterExit` que lanza `docker compose up -d` cuando el
   socket rootless está disponible. Mismo patrón que `caddy` y `nextcloud_aio`.
@@ -53,7 +60,8 @@ SQLite en bind mount del host y copia de seguridad diaria a Backblaze B2.
 | `wallabag_compose_path` | Directorio del proyecto compose | `/home/ubuntu/wallabag` |
 | `wallabag_compose_file` | Nombre del fichero compose | `docker-compose.yml` |
 | `wallabag_domain` | Dominio público de Wallabag | `wallabag.callepuzzle.com` |
-| `wallabag_image` | Imagen oficial (multi-arch, arm64 nativo) | `wallabag/wallabag:2.6` |
+| `wallabag_caddy_tls_internal` | Servir el sitio con certificado autofirmado local en vez de pedirlo a Let's Encrypt (solo para escenarios de test con dominio no real; lo aplica el snippet `wallabag.caddy`) | `false` |
+| `wallabag_image` | Imagen oficial (multi-arch, arm64 nativo), pinneada a una tag de versión concreta | `wallabag/wallabag:2.6.15.1` |
 | `wallabag_port` | Puerto en loopback que proxyfíca Caddy | `8081` |
 | `wallabag_ip_binding` | IP donde se publica el puerto (no exponer salvo tests) | `127.0.0.1` |
 | `wallabag_locale` | Idioma de la interfaz | `en` |
@@ -88,4 +96,26 @@ SQLite en bind mount del host y copia de seguridad diaria a Backblaze B2.
     - caddy         # reverse proxy
     - nextcloud_aio # las apps, después
     - wallabag      # esta (no hace nada hasta wallabag_enabled: true)
+```
+
+## Test funcional
+
+Escenario Molecule `wallabag-functional` (mismo patrón podman/sudo que
+`aio-functional`): converge `[docker_host, caddy, wallabag]` en un contenedor
+desechable con `wallabag_enabled: true` y TLS internal (dominio falso, sin
+DNS/ACME real), con el sync a B2 desactivado. El verify comprueba que el login
+responde a través de Caddy (`curl -k` con `--resolve`), que el contenedor está
+healthy y que el cron de snapshot SQLite está presente (y el de B2 ausente).
+
+```bash
+cd jilgue/ansible/roles/wallabag
+poetry run molecule test --scenario-name wallabag-functional
+```
+
+Para depurar una instancia en pie:
+
+```bash
+sudo podman exec -it wallabag-functional-test bash
+su - wallatest
+docker logs wallabag
 ```

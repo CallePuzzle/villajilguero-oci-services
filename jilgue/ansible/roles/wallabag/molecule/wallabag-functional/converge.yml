@@ -1,0 +1,72 @@
+---
+- name: Bootstrap the rootless-Docker test user
+  hosts: all
+  gather_facts: false
+  tasks:
+    # The cron package is missing in the minimal test image and the
+    # ansible.builtin.cron tasks of the wallabag role (backup schedule)
+    # need it; a real Ubuntu server host already has it.
+    - name: Ensure sudo and cron are installed
+      ansible.builtin.apt:
+        name:
+          - sudo
+          - cron
+        state: present
+        update_cache: true
+
+    - name: Create the rootless-docker test user
+      ansible.builtin.user:
+        name: "{{ docker_test_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Allow the test user passwordless sudo (disposable test container only)
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ docker_test_user }}"
+        content: "{{ docker_test_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+- name: Deploy the docker_host, caddy and wallabag roles
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_user: "{{ docker_test_user }}"
+    docker_host_user: "{{ docker_test_user }}"
+    # The app is off by default in the role; this scenario is exactly about
+    # validating it deployed and reachable through the shared proxy.
+    wallabag_enabled: true
+    wallabag_compose_path: "/home/{{ docker_test_user }}/wallabag"
+    # Defaults are production paths under /home/ubuntu; keep the backup
+    # dir inside the test user's home like aio-functional does with
+    # nextcloud_aio_backup_dir.
+    wallabag_backup_dir: "/home/{{ docker_test_user }}/wallabag-backups"
+    # The scenario's domain is not real and has no DNS; the role default is
+    # spelled out here so converge and verify can't drift apart.
+    wallabag_domain: wallabag.callepuzzle.com
+    # No real DNS/ACME available in this nested test container; serve a
+    # locally-generated self-signed cert instead of hitting Let's Encrypt.
+    wallabag_caddy_tls_internal: true
+    # Native overlayfs mounts aren't available this deep in nested
+    # containers; fuse-overlayfs is the supported fallback.
+    docker_host_storage_driver: fuse-overlayfs
+    # Keep the proxy's compose project inside the test user's home.
+    caddy_compose_path: "/home/{{ docker_test_user }}/caddy"
+    # Hardening is orthogonal to what this scenario validates (the app
+    # reachable end to end through the shared reverse proxy) and adds
+    # failure modes specific to running nested inside a container.
+    docker_host_enable_ufw: false
+    docker_host_enable_fail2ban: false
+    docker_host_enable_unattended_upgrades: false
+    # The B2 CLI download is orthogonal to what this scenario validates
+    # too, and with it off the Wallabag B2 sync cron stays off as well
+    # (verify asserts the cron is absent).
+    docker_host_b2_cli_enabled: false
+    wallabag_b2_sync_enabled: false
+    # The SQLite snapshot cron does not depend on the B2 CLI; leave it at
+    # its default (enabled) so verify can assert it is present.
+  roles:
+    - docker_host
+    # Reverse proxy (its site snippet is written by wallabag)
+    - caddy
+    - wallabag
