@@ -54,6 +54,7 @@ El rol calcula y deja en el play (vía `set_fact`):
 - hosts: docker_servers
   roles:
     - docker_host   # primero
-    # - caddy       # reverse proxy (tarea #38)
-    - nextcloud_aio
+    - caddy         # reverse proxy
+    - nextcloud_aio # las apps, después
+    - wallabag      # opcional (inerte hasta wallabag_enabled: true)
 ```

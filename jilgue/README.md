@@ -52,23 +52,37 @@ Default values are defined in `ansible/roles/docker_host/defaults/main.yml`, `an
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `caddy_compose_path` | Caddy compose project directory | `/home/ubuntu/caddy` |
+| `caddy_compose_file` | Compose file name | `docker-compose.yml` |
 | `caddy_sites_path` | Sites directory imported by the base Caddyfile (derived; exported as a fact by the role) | `{{ caddy_compose_path }}/sites` |
 | `caddy_container_name` | Container app roles restart after changing a snippet | `caddy` |
 | `caddy_image` | Caddy image | `caddy:alpine` |
+| `docker_host_user` | User that runs rootless Docker and owns the compose project (shared with app roles) | `ubuntu` |
+| `caddy_legacy_compose_project` | Compose project whose `caddy` container is treated as legacy and migrated (pre-#38 layout) | `nextcloud-aio` |
+| `caddy_legacy_backup_name` | Temporary name of the legacy container during the swap (rollback) | `{{ caddy_container_name }}-legacy-pre38` |
 
-The role exports `caddy_sites_path` and `caddy_container_name` as facts for the app roles (see the role README). The base Caddyfile imports `/etc/caddy/sites/*.caddy` and includes a `:80` placeholder so the config stays valid while no app snippet exists.
+The role exports `caddy_sites_path`, `caddy_container_name` and `caddy_legacy_migration_pending` as facts for the app roles (see the role README). The base Caddyfile imports `/etc/caddy/sites/*.caddy` and includes a `:80` placeholder so the config stays valid while no app snippet exists. On hosts still running the pre-#38 layout (a `caddy` container belonging to the `nextcloud-aio` compose project), the legacy container keeps serving and the swap is deferred to an end-of-play handler with automatic rollback (see [`MIGRATION.md`](MIGRATION.md)); while the swap is pending, app roles skip their proxy restarts and `nextcloud_aio` keeps the old AIO Caddyfile until the next run removes it.
 
 **`nextcloud_aio` role** (app):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `nextcloud_aio_domain` | Public domain for Nextcloud | `aio.callepuzzle.com` |
+| `nextcloud_aio_compose_path` | AIO compose project directory | `/home/ubuntu/nextcloud-aio` |
+| `nextcloud_aio_compose_file` | Compose file name | `docker-compose.yml` |
+| `nextcloud_aio_apache_port` | Apache port of AIO on loopback that Caddy proxies to | `11000` |
+| `nextcloud_aio_apache_ip_binding` | IP the AIO Apache listens on | `127.0.0.1` |
+| `nextcloud_aio_skip_domain_validation` | Skip AIO's domain validation | `true` |
+| `nextcloud_aio_mastercontainer_ip_binding` | IP the admin interface (8080) binds to (don't expose outside tests) | `127.0.0.1` |
+| `nextcloud_aio_caddy_tls_internal` | Serve the site with a locally-generated self-signed certificate instead of Let's Encrypt (test scenarios only) | `false` |
 | `nextcloud_aio_datadir` | Host path for data (empty = Docker volume) | `""` |
 | `nextcloud_aio_memory_limit` | PHP memory limit | `2048M` |
 | `nextcloud_aio_upload_limit` | Upload limit | `16G` |
 | `nextcloud_aio_max_time` | PHP max execution time | `3600` |
 | `nextcloud_aio_borg_retention_policy` | BorgBackup retention policy | `--keep-within=7d --keep-weekly=4 --keep-monthly=6` |
 | `nextcloud_aio_log_level` | AIO log level | `warn` |
+| `nextcloud_aio_trusted_proxies` | Trusted proxies for Nextcloud | `127.0.0.1` |
+| `nextcloud_aio_disable_backup_section` | Hide the backup section in the AIO UI | `false` |
+| `nextcloud_aio_backup_dir` | Host directory for local Borg backups | `/home/ubuntu/nextcloud-aio-backups` |
 | `nextcloud_aio_backup_enabled` | Enable backup timer | `true` |
 | `nextcloud_aio_backup_time` | Daily backup time | `02:00` |
 | `nextcloud_aio_b2_sync_enabled` | Enable daily sync of the Borg backup to Backblaze B2 (requires `docker_host_b2_cli_enabled`) | `true` |
@@ -83,6 +97,7 @@ The role exports `caddy_sites_path` and `caddy_container_name` as facts for the 
 | `wallabag_compose_path` | Wallabag compose project directory | `/home/ubuntu/wallabag` |
 | `wallabag_compose_file` | Compose file name | `docker-compose.yml` |
 | `wallabag_domain` | Public domain for Wallabag | `wallabag.callepuzzle.com` |
+| `wallabag_caddy_tls_internal` | Serve the site with a locally-generated self-signed certificate instead of requesting one from Let's Encrypt (test scenarios only; applied by the `wallabag.caddy` snippet) | `false` |
 | `wallabag_image` | Official multi-arch image (native arm64), pinned to a concrete version tag | `wallabag/wallabag:2.6.15.1` |
 | `wallabag_port` | Loopback port Caddy proxies to (8080 and 11000 are already taken) | `8081` |
 | `wallabag_ip_binding` | IP the port binds to (don't expose outside tests) | `127.0.0.1` |
@@ -148,7 +163,7 @@ aio.callepuzzle.com {
 }
 ```
 
-The role restarts the `caddy` container whenever the snippet changes (Caddy only reads its config at startup).
+If `nextcloud_aio_caddy_tls_internal` is `true` (test scenarios only), the snippet additionally serves the site with `tls internal` instead of Let's Encrypt. The role restarts the `caddy` container whenever the snippet changes (Caddy only reads its config at startup), except while the legacy Caddy migration is pending (see [`MIGRATION.md`](MIGRATION.md)).
 
 ### Wallabag site snippet (role `wallabag`, written to `sites/wallabag.caddy`)
 
@@ -158,6 +173,8 @@ wallabag.callepuzzle.com {
   reverse_proxy localhost:8081
 }
 ```
+
+The role restarts the `caddy` container when the snippet changes (skipped while the legacy Caddy migration is pending). If `wallabag_caddy_tls_internal` is `true` (test scenarios only), the snippet starts with `tls internal`.
 
 ## Systemd Services
 
@@ -292,6 +309,7 @@ systemctl --user list-timers nextcloud-aio-backup.timer
 jilgue/
 ├── main.tf                          # Terraform instance provisioning
 ├── credentials.enc.json             # Encrypted OCI credentials
+├── MIGRATION.md                     # Pre-#38 Caddy layout migration runbook + rollback (Spanish)
 ├── ansible/
 │   ├── ansible.cfg                  # Ansible configuration
 │   ├── playbook.yml                 # Main Ansible playbook
@@ -310,7 +328,13 @@ jilgue/
 │       │   └── README.md
 │       ├── caddy/                   # Reverse proxy: own compose project, site snippets
 │       │   ├── defaults/main.yml
-│       │   ├── tasks/main.yml
+│       │   ├── tasks/
+│       │   │   ├── main.yml
+│       │   │   └── migrate_legacy.yml  # Legacy (pre-#38) swap, included from the handler
+│       │   ├── handlers/
+│       │   │   └── main.yml            # End-of-play legacy Caddy swap
+│       │   ├── molecule/
+│       │   │   └── caddy-migration/    # Pre-#38 layout -> caddy role swap
 │       │   ├── templates/
 │       │   │   ├── Caddyfile.j2
 │       │   │   ├── docker-compose.yml.j2
@@ -319,7 +343,7 @@ jilgue/
 │       ├── nextcloud_aio/
 │       │   ├── defaults/main.yml    # Default role variables
 │       │   ├── tasks/main.yml       # Role tasks
-│       │   ├── molecule/            # Molecule scenarios (functional test, B2 restore)
+│       │   ├── molecule/            # Molecule scenarios (aio-functional, b2-restore)
 │       │   ├── templates/
 │       │   │   ├── docker-compose.yml.j2
 │       │   │   ├── nextcloud.caddy.j2
@@ -330,6 +354,8 @@ jilgue/
 │       └── wallabag/                # App: SQLite + daily B2 backup (disabled by default)
 │           ├── defaults/main.yml
 │           ├── tasks/main.yml       # Guarded by wallabag_enabled
+│           ├── molecule/
+│           │   └── wallabag-functional/  # End-to-end through Caddy
 │           ├── templates/
 │           │   ├── docker-compose.yml.j2
 │           │   ├── wallabag.caddy.j2
