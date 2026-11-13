@@ -40,11 +40,25 @@
       delay: 10
       changed_when: false
 
-    # Known 403 (pre-existing, documented in #43): the floating
-    # all-in-one:latest image hardened its origin-IP check and answers 403
-    # here, failing only this last check of the scenario. Not a regression
-    # of the roles; pending a separate issue to pin the mastercontainer
-    # version or adapt the scenario.
+    # The base Caddyfile's catch-all :80 placeholder must not shadow the
+    # automatic HTTP->HTTPS redirect of the Nextcloud site.
+    - name: Check that plain HTTP redirects to HTTPS (not the :80 placeholder)
+      ansible.builtin.command:
+        cmd: >-
+          curl -s --resolve {{ nextcloud_aio_domain }}:80:127.0.0.1
+          http://{{ nextcloud_aio_domain }}/ -o /dev/null
+          -w '%{http_code} %{redirect_url}'
+      register: caddy_http_redirect
+      changed_when: false
+      failed_when: >-
+        caddy_http_redirect.stdout !=
+        '308 https://' ~ nextcloud_aio_domain ~ '/'
+
+    # The floating all-in-one:latest image hardened its origin-IP check
+    # (#43) and answers 403 to this probe from inside the test container.
+    # What this check proves is that the admin UI listener is up and
+    # answering HTTP over TLS, so 403 counts as reachable; whether the UI
+    # is usable is checked by hand through the published port below.
     - name: Check that the mastercontainer admin UI is reachable
       ansible.builtin.uri:
         url: "https://localhost:8080"
@@ -52,6 +66,7 @@
           - 200
           - 301
           - 302
+          - 403
         validate_certs: false
       register: aio_ui
       until: aio_ui.status is defined

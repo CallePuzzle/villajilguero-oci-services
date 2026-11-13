@@ -1,0 +1,18 @@
+---
+# Notified by the migration guard in tasks/main.yml when a legacy (pre-#38)
+# caddy container from the AIO compose project is found. Handlers run at
+# the end of the play, after every app role has written its site snippet,
+# and only if no task failed — so the proxy is never left without sites.
+- name: Swap the legacy Caddy container for the caddy compose project
+  ansible.builtin.include_tasks: migrate_legacy.yml
+  listen: caddy legacy migration
+  when: not ansible_check_mode
+
+- name: Report the pending legacy Caddy swap (check mode)
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: the legacy caddy container would now be stopped, renamed
+      to {{ caddy_legacy_backup_name }} and replaced by the caddy compose
+      project's container.
+  listen: caddy legacy migration
+  when: ansible_check_mode

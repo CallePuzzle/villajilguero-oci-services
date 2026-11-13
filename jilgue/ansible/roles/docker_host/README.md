@@ -14,7 +14,11 @@ Backblaze B2. No despliega ninguna aplicación; los roles de app
   soportado en rootless — y `storage-driver` opcional, p. ej.
   `fuse-overlayfs` en entornos anidados).
 - **Hardening**: UFW (22/80/443 abiertos, 8080 denegado, policy deny),
-  fail2ban (jail sshd) y unattended-upgrades.
+  fail2ban (jail sshd) y unattended-upgrades. Idempotente sobre un host
+  vivo: UFW ya no se resetea en cada ejecución (añade las reglas que
+  falten; las reglas añadidas a mano o retiradas de aquí hay que borrarlas
+  con `ufw delete`) y fail2ban solo se reinicia si cambia `jail.local`
+  (así no se pierden los baneos activos).
 - **Backblaze B2 CLI**: instala el binario `b2` en `/usr/local/bin/` (eligiendo
   variante `-aarch64` si aplica). Los crons que lo usan pertenecen a cada rol
   de app. Requiere autorización manual fuera de banda (`b2 account authorize`)

@@ -44,6 +44,9 @@ poetry run molecule test --scenario-name b2-restore       # verify B2 backup res
 
 cd jilgue/ansible/roles/wallabag
 poetry run molecule test --scenario-name wallabag-functional  # Wallabag end-to-end through Caddy
+
+cd jilgue/ansible/roles/caddy
+poetry run molecule test --scenario-name caddy-migration  # pre-#38 Caddy layout -> caddy role swap
 ```
 
 - Molecule scenarios use `driver: default` and drive **rootful podman** through the scenario's `files/sudo-podman` wrapper (`ANSIBLE_PODMAN_EXECUTABLE`, needs passwordless `sudo podman`) — the nested rootless Docker inside AIO requires the outer test container to be created by rootful podman. Deps (molecule 25.x, `molecule-plugins[podman]`, pytest-testinfra, ansible 13.x, Python >=3.12) come from `jilgue/ansible/pyproject.toml` — run via `poetry`.

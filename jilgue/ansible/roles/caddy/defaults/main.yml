@@ -19,3 +19,10 @@ caddy_image: caddy:alpine
 # installed by the docker_host role; the default is duplicated here so this
 # role stays runnable standalone. Override in group_vars to change everywhere.
 docker_host_user: ubuntu
+
+# Migration from the pre-#38 layout (Caddy as a service of the AIO compose
+# project). A container named caddy_container_name labelled with this
+# compose project is treated as legacy and swapped at the end of the play
+# (see handlers/main.yml). Name it gets while kept for rollback.
+caddy_legacy_compose_project: nextcloud-aio
+caddy_legacy_backup_name: "{{ caddy_container_name }}-legacy-pre38"

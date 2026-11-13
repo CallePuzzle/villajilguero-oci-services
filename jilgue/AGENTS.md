@@ -7,7 +7,7 @@ Entorno de producción para Nextcloud All-in-One (AIO) desplegado en una instanc
 - **OCI Instance**: Ubuntu 24.04 (shape VM.Standard.A1.Flex) provisionada via Terraform (`terraform-module-k0s-oci` con `enable_k0s = false`, pineado por tag git: `?ref=v1.7.2` en `main.tf`). El módulo **nunca reemplaza la instancia viva** (submódulo `compute-instance` vendorizado con `ignore_changes = [metadata, source_details]`): cloud-init e imagen solo aplican en el primer boot; los parches van por unattended-upgrades.
 - **Roles de Ansible**: `docker_host` (base del host: Docker rootless, hardening, CLI de Backblaze B2), `caddy` (reverse proxy con compose propio y snippets de sitio por app), `nextcloud_aio` y `wallabag` (apps). El playbook los ejecuta en ese orden.
 - **Docker**: Rootless mode con socket en `/run/user/<uid>/docker.sock`.
-- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`, `wallabag.caddy`) y reinicia el contenedor `caddy` si cambia.
+- **Reverse Proxy**: Caddy en `network_mode: host` escuchando en 80/443(TCP+UDP para HTTP/3) y proxyficando a `localhost:11000`. Compose y Caddyfile base los gestiona el rol `caddy` (proyecto compose `caddy`, volúmenes nombrados `caddy_config`/`caddy_data` reutilizados del layout anterior); cada rol de app escribe su snippet de sitio en `caddy_sites_path` (p. ej. `nextcloud.caddy`, `wallabag.caddy`) y reinicia el contenedor `caddy` si cambia. **Migración desde el layout anterior** (Caddy dentro del compose `nextcloud-aio`): el rol `caddy` la hace sola al final del play, con rollback automático; ver [`MIGRATION.md`](MIGRATION.md) para el procedimiento en producción y el rollback manual.
 - **Nextcloud AIO**: Mastercontainer en `network_mode: bridge` con la interfaz admin restringida a `127.0.0.1:8080`.
 
 ## Operaciones comunes
@@ -91,7 +91,7 @@ Ambos test:
 - **Security List OCI** (módulo ≥ v1.6.0, efectivo tras el siguiente `terraform apply`): el 22 (SSH) solo admite la IP pública `/32` de quien ejecuta terraform (data source `http` contra `ipv4.icanhazip.com`; si cambias de red, el siguiente apply actualiza la regla). El 80/443 siguen abiertos a `0.0.0.0/0` via `additional_security_list_rules` (tráfico web necesario para Nextcloud).
 - **fail2ban**: Protege SSH contra fuerza bruta.
 - **unattended-upgrades**: Actualizaciones de seguridad automáticas del SO.
-- UFW, fail2ban y unattended-upgrades los instala y configura el rol `docker_host` (conmutadores `docker_host_enable_*`).
+- UFW, fail2ban y unattended-upgrades los instala y configura el rol `docker_host` (conmutadores `docker_host_enable_*`). UFW no se resetea en cada ejecución: añade las reglas que falten, pero las reglas añadidas a mano (o retiradas del rol) hay que borrarlas con `ufw delete`. fail2ban solo se reinicia si cambia `jail.local`.
 - **Docker rootless**: Reduce la superficie de ataque; los contenedores corren sin privilegios de root.
 - **Log driver**: Docker usa `log-driver: local` para evitar crecimiento descontrolado de logs.
 - **Trusted proxies**: `NEXTCLOUD_TRUSTED_PROXIES=127.0.0.1` configurado para Caddy en host network.
@@ -120,8 +120,10 @@ Las del rol `docker_host` están en `ansible/roles/docker_host/defaults/main.yml
 | `caddy_sites_path` | Directorio de snippets de sitio que importa el Caddyfile base (derivado; lo exportan como fact tanto `caddy` como los roles de app) | `{{ caddy_compose_path }}/sites` |
 | `caddy_container_name` | Contenedor que los roles de app reinician tras cambiar un snippet | `caddy` |
 | `caddy_image` | Imagen de Caddy | `caddy:alpine` |
+| `caddy_legacy_compose_project` | Proyecto compose cuyo contenedor `caddy` se migra (layout anterior a #38) | `nextcloud-aio` |
+| `caddy_legacy_backup_name` | Nombre temporal del contenedor legacy durante el traspaso (rollback) | `{{ caddy_container_name }}-legacy-pre38` |
 
-El rol deja `caddy_sites_path` y `caddy_container_name` como facts para los roles de app (ver README del rol). El Caddyfile base incluye un placeholder `:80` para que la config siga siendo válida cuando no hay snippets.
+El rol deja `caddy_sites_path`, `caddy_container_name` y `caddy_legacy_migration_pending` como facts para los roles de app (ver README del rol). Mientras la migración esté pendiente, los roles de app no reinician el proxy. El Caddyfile base incluye un placeholder `:80` para que la config siga siendo válida cuando no hay snippets.
 
 **Rol `nextcloud_aio`** (app):
 

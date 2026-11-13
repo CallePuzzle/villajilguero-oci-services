@@ -1,0 +1,115 @@
+---
+# Swap of the legacy caddy container (service of the nextcloud-aio compose
+# project, pre-#38 layout) for the one of this role's compose project.
+# Included from the handler only. The legacy container is stopped and
+# renamed rather than removed, so if the new proxy doesn't come up healthy
+# the rescue puts the old one back exactly as it was. Named volumes
+# (caddy_config / caddy_data) are never removed: both containers share them.
+
+- name: Find the site snippets written by the app roles
+  ansible.builtin.find:
+    paths: "{{ caddy_sites_path }}"
+    patterns: "*.caddy"
+  register: caddy_site_snippets
+
+# Without snippets the new proxy would only serve the :80 placeholder:
+# keep the legacy container serving instead.
+- name: Refuse to swap the proxy while no app has written a site snippet
+  ansible.builtin.assert:
+    that:
+      - caddy_site_snippets.matched > 0
+    fail_msg: >-
+      No *.caddy snippet in {{ caddy_sites_path }}; the legacy caddy
+      container was left running untouched. Make sure the app roles run
+      after the caddy role in the same play and re-run the playbook.
+
+- name: Swap the proxy containers
+  environment:
+    DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+    PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
+  block:
+    # Downtime starts here and lasts until the new container listens.
+    - name: Stop the legacy caddy container
+      ansible.builtin.command:
+        cmd: docker stop {{ caddy_container_name }}
+
+    - name: Rename the legacy caddy container to keep it for rollback
+      ansible.builtin.command:
+        cmd: docker rename {{ caddy_container_name }} {{ caddy_legacy_backup_name }}
+
+    - name: Start docker-compose-caddy service
+      ansible.builtin.systemd:
+        name: docker-compose-caddy
+        state: restarted
+        enabled: yes
+        scope: user
+
+    - name: Wait for the new caddy container to become healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format {{ '{{.State.Health.Status}}' }} {{ caddy_container_name }}
+      register: caddy_new_health
+      until: caddy_new_health.stdout | trim == "healthy"
+      retries: 18
+      delay: 5
+      changed_when: false
+
+    - name: Remove the legacy caddy container (named volumes are kept)
+      ansible.builtin.command:
+        cmd: docker rm {{ caddy_legacy_backup_name }}
+
+    - name: Mark the legacy Caddy migration as done for the rest of the play
+      ansible.builtin.set_fact:
+        caddy_legacy_migration_pending: false
+
+  rescue:
+    # Disabled too: otherwise on reboot it would race the legacy container
+    # (restart: always) for the caddy name and ports 80/443.
+    - name: Stop and disable docker-compose-caddy service
+      ansible.builtin.systemd:
+        name: docker-compose-caddy
+        state: stopped
+        enabled: no
+        scope: user
+      failed_when: false
+
+    # Captured before `down` deletes the container, for the diagnosis.
+    - name: Collect the new caddy container logs
+      ansible.builtin.command:
+        cmd: docker compose logs --no-color --tail 100
+        chdir: "{{ caddy_compose_path }}"
+      register: caddy_new_logs
+      changed_when: false
+      failed_when: false
+
+    - name: Show the new caddy container logs
+      ansible.builtin.debug:
+        var: caddy_new_logs.stdout_lines
+
+    # `down` without -v: removes the new container, keeps the volumes.
+    - name: Remove the new caddy container
+      ansible.builtin.command:
+        cmd: docker compose down
+        chdir: "{{ caddy_compose_path }}"
+      failed_when: false
+
+    - name: Check for the renamed legacy caddy container
+      ansible.builtin.command:
+        cmd: docker ps --all --filter name=^{{ caddy_legacy_backup_name }}$ --format {{ '{{.ID}}' }}
+      register: caddy_legacy_backup
+      changed_when: false
+
+    - name: Restore the legacy caddy container name
+      ansible.builtin.command:
+        cmd: docker rename {{ caddy_legacy_backup_name }} {{ caddy_container_name }}
+      when: caddy_legacy_backup.stdout | trim | length > 0
+
+    - name: Start the legacy caddy container again
+      ansible.builtin.command:
+        cmd: docker start {{ caddy_container_name }}
+
+    - name: Fail after rolling back to the legacy caddy container
+      ansible.builtin.fail:
+        msg: >-
+          The new caddy container did not come up healthy; rolled back to the
+          legacy one from the {{ caddy_legacy_compose_project }} project.
+          Check `docker compose logs` in {{ caddy_compose_path }} and jilgue/MIGRATION.md.

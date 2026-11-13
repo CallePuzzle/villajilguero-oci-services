@@ -1,0 +1,177 @@
+---
+# Reproduces the production migration of #38: a host still running the
+# pre-#38 layout (Caddy as a service of the nextcloud-aio compose project,
+# certificates in the caddy_data volume) converged with the docker_host +
+# caddy roles plus an app that writes its site snippet. Asserts that the
+# legacy proxy keeps serving until the end of the play and that the swap
+# reuses the volumes.
+
+- name: Bootstrap the rootless-Docker test user
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ensure sudo is installed
+      ansible.builtin.apt:
+        name: sudo
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the rootless-docker test user
+      ansible.builtin.user:
+        name: "{{ docker_test_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Allow the test user passwordless sudo (disposable test container only)
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ docker_test_user }}"
+        content: "{{ docker_test_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+- name: Deploy the host base
+  hosts: all
+  gather_facts: false
+  vars: &host_vars
+    ansible_user: "{{ docker_test_user }}"
+    docker_host_user: "{{ docker_test_user }}"
+    # Native overlayfs mounts aren't available this deep in nested
+    # containers; fuse-overlayfs is the supported fallback.
+    docker_host_storage_driver: fuse-overlayfs
+    # Orthogonal to the proxy migration and fragile nested in a container.
+    docker_host_enable_ufw: false
+    docker_host_enable_fail2ban: false
+    docker_host_enable_unattended_upgrades: false
+    docker_host_b2_cli_enabled: false
+    caddy_compose_path: "/home/{{ docker_test_user }}/caddy"
+    legacy_compose_path: "/home/{{ docker_test_user }}/nextcloud-aio"
+  roles:
+    - docker_host
+
+- name: Recreate the pre-#38 layout (Caddy inside the nextcloud-aio project)
+  hosts: all
+  gather_facts: false
+  vars: *host_vars
+  tasks:
+    # Already migrated (e.g. the idempotence run): nothing to recreate.
+    - name: Check whether the caddy compose project already exists
+      ansible.builtin.stat:
+        path: "{{ caddy_compose_path }}/docker-compose.yml"
+      register: new_layout
+
+    - name: Set up the legacy proxy
+      when: not new_layout.stat.exists
+      environment:
+        DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+      block:
+        - name: Create the legacy compose project directory
+          ansible.builtin.file:
+            path: "{{ legacy_compose_path }}"
+            state: directory
+            mode: "0750"
+
+        - name: Write the legacy Caddyfile
+          ansible.builtin.copy:
+            dest: "{{ legacy_compose_path }}/Caddyfile"
+            mode: "0640"
+            content: |
+              {{ caddy_test_domain }} {
+                tls internal
+                respond "legacy"
+              }
+
+        # Same caddy service and named volumes as the nextcloud_aio
+        # docker-compose.yml.j2 on main before #38 (minus the AIO
+        # mastercontainer, irrelevant to the proxy swap).
+        - name: Write the legacy docker-compose.yml
+          ansible.builtin.copy:
+            dest: "{{ legacy_compose_path }}/docker-compose.yml"
+            mode: "0640"
+            content: |
+              name: nextcloud-aio
+              services:
+                caddy:
+                  image: caddy:alpine
+                  restart: always
+                  container_name: caddy
+                  network_mode: host
+                  volumes:
+                    - {{ legacy_compose_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
+                    - caddy_config:/config
+                    - caddy_data:/data
+                  logging:
+                    driver: "local"
+                  healthcheck:
+                    test: ["CMD", "nc", "-z", "127.0.0.1", "443"]
+                    interval: 30s
+                    timeout: 10s
+                    retries: 3
+                    start_period: 30s
+              volumes:
+                caddy_config:
+                  name: caddy_config
+                caddy_data:
+                  name: caddy_data
+
+        - name: Start the legacy proxy
+          ansible.builtin.command:
+            cmd: docker compose up -d
+            chdir: "{{ legacy_compose_path }}"
+
+        - name: Wait for the legacy proxy to serve the site
+          ansible.builtin.command:
+            cmd: >-
+              curl -sk --resolve {{ caddy_test_domain }}:443:127.0.0.1
+              https://{{ caddy_test_domain }}/
+          register: legacy_body
+          until: legacy_body.stdout == 'legacy'
+          retries: 12
+          delay: 5
+
+        # Stands in for the Let's Encrypt certificates: must survive the swap.
+        - name: Drop a marker into the caddy_data volume
+          ansible.builtin.command:
+            cmd: docker exec caddy sh -c 'echo pre38 > /data/migration-marker'
+
+- name: Converge the caddy role plus an app writing its snippet
+  hosts: all
+  gather_facts: false
+  vars: *host_vars
+  roles:
+    - caddy
+  # Same pattern as the nextcloud_aio / wallabag roles. In playbook.yml the
+  # apps are roles, here plain tasks: both run before the end-of-section
+  # handler flush that performs the swap.
+  tasks:
+    - name: Write the app site snippet for Caddy
+      ansible.builtin.copy:
+        dest: "{{ caddy_sites_path }}/app.caddy"
+        mode: "0640"
+        content: |
+          {{ caddy_test_domain }} {
+            tls internal
+            respond "migrated"
+          }
+      register: app_caddy_site
+
+    - name: Restart Caddy to apply the site snippet changes
+      ansible.builtin.command:
+        cmd: docker restart {{ caddy_container_name }}
+      environment:
+        DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
+      when:
+        - app_caddy_site.changed
+        - not (caddy_legacy_migration_pending | default(false) | bool)
+
+    # The point of deferring the swap: right before the handler runs, the
+    # legacy proxy must still be the one answering.
+    - name: Assert the legacy proxy still serves before the handler runs
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk --resolve {{ caddy_test_domain }}:443:127.0.0.1
+          https://{{ caddy_test_domain }}/
+      register: pre_swap_body
+      changed_when: false
+      failed_when: pre_swap_body.stdout != 'legacy'
+      when: caddy_legacy_migration_pending | bool

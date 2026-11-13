@@ -1,0 +1,10 @@
+---
+all:
+  hosts:
+    caddy-migration-test:
+      ansible_host: caddy-migration-test
+      ansible_connection: podman
+      container_image: docker.io/geerlingguy/docker-ubuntu2204-ansible:latest
+      docker_test_user: caddytest
+      # Fake site served by both the legacy and the new proxy (internal CA)
+      caddy_test_domain: migration.callepuzzle.test

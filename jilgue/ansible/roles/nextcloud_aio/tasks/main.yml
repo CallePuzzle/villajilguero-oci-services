@@ -8,6 +8,8 @@
   ansible.builtin.command: id -u {{ docker_host_user }}
   register: docker_host_uid_result
   changed_when: false
+  # Read-only; must also run under --check or the socket path is empty
+  check_mode: false
 
 - name: Define rootless Docker socket path
   ansible.builtin.set_fact:
@@ -50,7 +52,7 @@
     owner: "{{ docker_host_user }}"
     group: "{{ docker_host_user }}"
     mode: "0640"
-  register: nextcloud_aio_compose_file
+  register: nextcloud_aio_compose_result
 
 - name: Ensure user systemd directory
   ansible.builtin.file:
@@ -91,25 +93,34 @@
   environment:
     DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
     PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
-  when: nextcloud_aio_compose_file.changed
+  when: nextcloud_aio_compose_result.changed
 
 # Caddy only reads its site snippets at startup, and they're bind-mounted
 # files rather than part of the compose service definition, so "docker
-# compose up -d" above won't make it reload on its own.
+# compose up -d" above won't make it reload on its own. Skipped while the
+# caddy role's legacy migration is pending: the container named caddy is
+# still the legacy one, and the migration handler starts the new one
+# (which reads every snippet) at the end of the play.
 - name: Restart Caddy to apply the site snippet changes
   ansible.builtin.command:
     cmd: docker restart {{ caddy_container_name }}
   environment:
     DOCKER_HOST: "unix://{{ docker_host_socket_path }}"
     PATH: "{{ ansible_facts.env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
-  when: nextcloud_aio_caddy_site.changed
+  when:
+    - nextcloud_aio_caddy_site.changed
+    - not (caddy_legacy_migration_pending | default(false) | bool)
 
 # Obsolete since #38: the base Caddyfile moved to the caddy role's own
 # compose project; this role now only ships the site snippet above.
+# Kept while the caddy role's legacy migration is pending: the legacy
+# container bind-mounts it and the migration handler may need to start
+# that container again on rollback. The next run removes it.
 - name: Remove the obsolete Caddyfile from the AIO compose project
   ansible.builtin.file:
     path: "{{ nextcloud_aio_compose_path }}/Caddyfile"
     state: absent
+  when: not (caddy_legacy_migration_pending | default(false) | bool)
 
 - name: Create Nextcloud AIO backup systemd service
   ansible.builtin.template:

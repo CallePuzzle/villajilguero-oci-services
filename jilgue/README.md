@@ -20,6 +20,8 @@ poetry install
 poetry run ansible-playbook -i inventory/oci_docker.yml playbook.yml
 ```
 
+Upgrading an existing host from the pre-#38 layout (Caddy inside the `nextcloud-aio` compose project): see [`MIGRATION.md`](MIGRATION.md) (in Spanish) for the production procedure and rollback.
+
 ## Access
 
 - **Nextcloud**: `https://aio.callepuzzle.com`
@@ -249,7 +251,7 @@ Both tests:
 
 ## Security
 
-- **UFW**: Only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) are open publicly. Port 8080 (AIO admin) is denied from outside.
+- **UFW**: Only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) are open publicly. Port 8080 (AIO admin) is denied from outside. Rules are added idempotently (no `ufw reset` per run); rules added by hand must be removed with `ufw delete`.
 - **fail2ban**: Protects SSH against brute-force attacks.
 - **unattended-upgrades**: Automatic OS security updates.
 - **Docker rootless**: Reduces attack surface; containers run without root privileges.

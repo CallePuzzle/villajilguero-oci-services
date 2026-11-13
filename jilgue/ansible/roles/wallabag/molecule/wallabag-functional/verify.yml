@@ -53,6 +53,20 @@
       delay: 10
       changed_when: false
 
+    # The base Caddyfile's catch-all :80 placeholder must not shadow the
+    # automatic HTTP->HTTPS redirect of the imported site.
+    - name: Check that plain HTTP redirects to HTTPS (not the :80 placeholder)
+      ansible.builtin.command:
+        cmd: >-
+          curl -s --resolve {{ wallabag_domain }}:80:127.0.0.1
+          http://{{ wallabag_domain }}/login -o /dev/null
+          -w '%{http_code} %{redirect_url}'
+      register: wallabag_http_redirect
+      changed_when: false
+      failed_when: >-
+        wallabag_http_redirect.stdout !=
+        '308 https://' ~ wallabag_domain ~ '/login'
+
     # Backup crons: the SQLite snapshot doesn't depend on the B2 CLI and
     # stays enabled at its default; the B2 sync cron must be absent with
     # wallabag_b2_sync_enabled: false in converge.
